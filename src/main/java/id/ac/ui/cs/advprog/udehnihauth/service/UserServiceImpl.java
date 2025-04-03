@@ -70,9 +70,19 @@ public class UserServiceImpl implements UserService {
                 .email(user.getEmail())
                 .fullName(user.getFullName())
                 .phoneNumber(user.getPhoneNumber())
+                .dateOfBirth(user.getDateOfBirth())
                 .registrationDate(user.getRegistrationDate())
                 .gender(user.getGender())
                 .roles(user.getRoles())
                 .build();
+    }
+
+    @Override
+    @Transactional
+    public void deleteUser(UUID id) {
+        if (!userRepository.existsById(id)) {
+            throw new IllegalArgumentException("User not found with ID: " + id);
+        }
+        userRepository.deleteById(id);
     }
 }
