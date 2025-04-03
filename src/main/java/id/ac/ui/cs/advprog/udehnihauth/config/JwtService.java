@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.udehnihauth.config;
 
+import id.ac.ui.cs.advprog.udehnihauth.model.User;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
@@ -40,6 +41,11 @@ public class JwtService {
         return generateToken(new HashMap<>(), userDetails);
     }
 
+    public String generateToken(User user) {
+        Map<String, Object> claims = new HashMap<>();
+        return generateToken(claims, new UserDetailsAdapter(user));
+    }
+
     public String generateToken(
             Map<String, Object> extraClaims,
             UserDetails userDetails
@@ -47,10 +53,12 @@ public class JwtService {
         return buildToken(extraClaims, userDetails, jwtExpiration);
     }
 
-    public String generateRefreshToken(
-            UserDetails userDetails
-    ) {
+    public String generateRefreshToken(UserDetails userDetails) {
         return buildToken(new HashMap<>(), userDetails, refreshExpiration);
+    }
+
+    public String generateRefreshToken(User user) {
+        return buildToken(new HashMap<>(), new UserDetailsAdapter(user), refreshExpiration);
     }
 
     private String buildToken(
@@ -73,6 +81,14 @@ public class JwtService {
         return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
     }
 
+    public boolean isTokenValid(String token) {
+        try {
+            return !isTokenExpired(token);
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
     private boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
     }
@@ -93,5 +109,50 @@ public class JwtService {
     private Key getSignInKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    private static class UserDetailsAdapter implements UserDetails {
+        private final User user;
+
+        public UserDetailsAdapter(User user) {
+            this.user = user;
+        }
+
+        @Override
+        public String getUsername() {
+            return user.getEmail();
+        }
+
+        @Override
+        public String getPassword() {
+            return user.getPassword();
+        }
+
+        @Override
+        public boolean isAccountNonExpired() {
+            return true;
+        }
+
+        @Override
+        public boolean isAccountNonLocked() {
+            return true;
+        }
+
+        @Override
+        public boolean isCredentialsNonExpired() {
+            return true;
+        }
+
+        @Override
+        public boolean isEnabled() {
+            return true;
+        }
+
+        @Override
+        public java.util.Collection<? extends org.springframework.security.core.GrantedAuthority> getAuthorities() {
+            return user.getRoles().stream()
+                    .map(role -> new org.springframework.security.core.authority.SimpleGrantedAuthority("ROLE_" + role.name()))
+                    .collect(java.util.stream.Collectors.toList());
+        }
     }
 }
