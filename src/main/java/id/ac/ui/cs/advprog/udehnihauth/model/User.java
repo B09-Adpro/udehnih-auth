@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.udehnihauth.model;
 
+import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -14,16 +15,35 @@ import java.util.UUID;
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
+@Entity
+@Table(name = "users")
 public class User {
+    @Id
+    @GeneratedValue
     private UUID id;
+
+    @Column(unique = true, nullable = false)
     private String email;
+
+    @Column(nullable = false)
     private String fullName;
+
+    @Column(nullable = false)
     private String password;
+
+    @Column(nullable = false)
     private LocalDateTime registrationDate;
+
     private String phoneNumber;
+
     private LocalDateTime dateOfBirth;
+
+    @Enumerated(EnumType.STRING)
     private Gender gender;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "user_roles", joinColumns = @JoinColumn(name = "user_id"))
+    @Enumerated(EnumType.STRING)
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
 
