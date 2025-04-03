@@ -1,6 +1,7 @@
 package id.ac.ui.cs.advprog.udehnihauth.controller;
 
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.LoginRequest;
+import id.ac.ui.cs.advprog.udehnihauth.dto.request.LogoutRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.RegisterRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.AuthResponse;
 import id.ac.ui.cs.advprog.udehnihauth.service.AuthService;
@@ -40,9 +41,9 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<Void> logout(
-            @RequestBody String refreshToken
+            @RequestBody LogoutRequest logoutRequest
     ) {
-        authService.logout(refreshToken);
+        authService.logout(logoutRequest);
         return ResponseEntity.noContent().build();
     }
 
