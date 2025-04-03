@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.udehnihauth.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.LoginRequest;
+import id.ac.ui.cs.advprog.udehnihauth.dto.request.LogoutRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.RegisterRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.AuthResponse;
 import id.ac.ui.cs.advprog.udehnihauth.model.Gender;
@@ -69,6 +70,7 @@ class AuthControllerTest {
     private LoginRequest loginRequest;
     private AuthResponse authResponse;
     private String refreshToken;
+    private LogoutRequest logoutRequest;
 
     @BeforeEach
     void setUp() {
@@ -101,6 +103,12 @@ class AuthControllerTest {
 
         refreshToken = "refresh-token-value";
 
+        logoutRequest = LogoutRequest.builder()
+                .accessToken("access-token-value")
+                .refreshToken(refreshToken)
+                .build();
+
+
         authResponse = AuthResponse.builder()
                 .token("access-token-value")
                 .refreshToken(refreshToken)
@@ -109,7 +117,7 @@ class AuthControllerTest {
         doReturn(authResponse).when(authService).register(any(RegisterRequest.class));
         doReturn(authResponse).when(authService).authenticate(any(LoginRequest.class));
         doReturn(authResponse).when(authService).refreshToken(anyString());
-        doNothing().when(authService).logout(anyString());
+        doNothing().when(authService).logout(any(LogoutRequest.class));
     }
 
     @Test
@@ -149,16 +157,6 @@ class AuthControllerTest {
     }
 
     @Test
-    void logoutShouldReturnNoContent() throws Exception {
-        mockMvc.perform(post("/api/v1/auth/logout")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content("\"" + refreshToken + "\""))
-                .andExpect(status().isNoContent());
-
-        verify(authService, times(1)).logout(anyString());
-    }
-
-    @Test
     void registerWithInvalidDataShouldReturnBadRequest() throws Exception {
         RegisterRequest invalidRequest = RegisterRequest.builder()
                 .email("")
@@ -194,5 +192,15 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("\"invalid-token\""))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void logoutWithRequestShouldReturnNoContent() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logoutRequest)))
+                .andExpect(status().isNoContent());
+
+        verify(authService, times(1)).logout(any(LogoutRequest.class));
     }
 }
