@@ -28,7 +28,7 @@ public class SecurityConfig {
                 .csrf(AbstractHttpConfigurer::disable)
                 .authorizeHttpRequests(req ->
                         req.requestMatchers(
-                                        new AntPathRequestMatcher("/api/auth/**"),
+                                        new AntPathRequestMatcher("/api/v1/auth/**"),
                                         new AntPathRequestMatcher("/error"),
                                         new AntPathRequestMatcher("/h2-console/**")
                                 )
