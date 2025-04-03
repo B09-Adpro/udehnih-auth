@@ -13,6 +13,7 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import id.ac.ui.cs.advprog.udehnihauth.dto.request.LogoutRequest;
 
 import java.time.LocalDateTime;
 
@@ -104,12 +105,20 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
-    public void logout(String refreshToken) {
-        if (!jwtService.isTokenValid(refreshToken)) {
-            throw new IllegalArgumentException("Invalid refresh token");
+    public void logout(LogoutRequest logoutRequest) {
+        String accessToken = logoutRequest.getAccessToken();
+        if (accessToken != null && accessToken.startsWith("Bearer ")) {
+            accessToken = accessToken.substring(7);
         }
 
-        jwtService.revokeToken(refreshToken);
+        String refreshToken = logoutRequest.getRefreshToken();
 
+        if (refreshToken != null && jwtService.isTokenValid(refreshToken)) {
+            jwtService.revokeToken(refreshToken);
+        }
+
+        if (accessToken != null && jwtService.isTokenValid(accessToken)) {
+            jwtService.revokeToken(accessToken);
+        }
     }
 }
