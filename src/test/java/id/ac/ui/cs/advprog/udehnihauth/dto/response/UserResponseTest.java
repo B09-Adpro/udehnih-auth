@@ -15,8 +15,7 @@ class UserResponseTest {
 
     @Test
     void testUserResponseCreation() {
-        // Given
-        String id = UUID.randomUUID().toString();
+        UUID id = UUID.randomUUID();
         String email = "test@example.com";
         String fullName = "Test User";
         String phoneNumber = "1234567890";
@@ -26,7 +25,6 @@ class UserResponseTest {
         LocalDateTime dateOfBirth = LocalDateTime.of(2000, 1, 1, 0, 0);
         Gender gender = Gender.MALE;
 
-        // When
         UserResponse response = UserResponse.builder()
                 .id(id)
                 .email(email)
@@ -38,7 +36,6 @@ class UserResponseTest {
                 .gender(gender)
                 .build();
 
-        // Then
         assertNotNull(response);
         assertEquals(id, response.getId());
         assertEquals(email, response.getEmail());
@@ -52,10 +49,8 @@ class UserResponseTest {
 
     @Test
     void testNoArgsConstructor() {
-        // When
         UserResponse response = new UserResponse();
 
-        // Then
         assertNotNull(response);
         assertNull(response.getId());
         assertNull(response.getEmail());
@@ -69,9 +64,8 @@ class UserResponseTest {
 
     @Test
     void testSetters() {
-        // Given
         UserResponse response = new UserResponse();
-        String id = UUID.randomUUID().toString();
+        UUID id = UUID.randomUUID();
         String email = "test@example.com";
         String fullName = "Test User";
         String phoneNumber = "1234567890";
@@ -81,7 +75,6 @@ class UserResponseTest {
         LocalDateTime dateOfBirth = LocalDateTime.of(2000, 1, 1, 0, 0);
         Gender gender = Gender.MALE;
 
-        // When
         response.setId(id);
         response.setEmail(email);
         response.setFullName(fullName);
@@ -91,7 +84,6 @@ class UserResponseTest {
         response.setDateOfBirth(dateOfBirth);
         response.setGender(gender);
 
-        // Then
         assertEquals(id, response.getId());
         assertEquals(email, response.getEmail());
         assertEquals(fullName, response.getFullName());
@@ -104,8 +96,7 @@ class UserResponseTest {
 
     @Test
     void testEquals() {
-        // Given
-        String id = UUID.randomUUID().toString();
+        UUID id = UUID.randomUUID();
         UserResponse response1 = UserResponse.builder()
                 .id(id)
                 .email("test@example.com")
@@ -119,20 +110,18 @@ class UserResponseTest {
                 .build();
 
         UserResponse response3 = UserResponse.builder()
-                .id(UUID.randomUUID().toString())
+                .id(UUID.randomUUID())
                 .email("test@example.com")
                 .fullName("Test User")
                 .build();
 
-        // Then
         assertEquals(response1, response2);
         assertNotEquals(response1, response3);
     }
 
     @Test
     void testHashCode() {
-        // Given
-        String id = UUID.randomUUID().toString();
+        UUID id = UUID.randomUUID();
         UserResponse response1 = UserResponse.builder()
                 .id(id)
                 .email("test@example.com")
@@ -145,14 +134,12 @@ class UserResponseTest {
                 .fullName("Test User")
                 .build();
 
-        // Then
         assertEquals(response1.hashCode(), response2.hashCode());
     }
 
     @Test
     void testToString() {
-        // Given
-        String id = UUID.randomUUID().toString();
+        UUID id = UUID.randomUUID();
         String email = "test@example.com";
         String fullName = "Test User";
         UserResponse response = UserResponse.builder()
@@ -161,11 +148,9 @@ class UserResponseTest {
                 .fullName(fullName)
                 .build();
 
-        // When
         String toString = response.toString();
 
-        // Then
-        assertTrue(toString.contains(id));
+        assertTrue(toString.contains(id.toString()));
         assertTrue(toString.contains(email));
         assertTrue(toString.contains(fullName));
     }
