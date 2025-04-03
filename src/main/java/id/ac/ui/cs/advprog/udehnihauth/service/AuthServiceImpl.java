@@ -101,4 +101,15 @@ public class AuthServiceImpl implements AuthService {
                 .refreshToken(newRefreshToken)
                 .build();
     }
+
+    @Override
+    @Transactional
+    public void logout(String refreshToken) {
+        if (!jwtService.isTokenValid(refreshToken)) {
+            throw new IllegalArgumentException("Invalid refresh token");
+        }
+
+        jwtService.revokeToken(refreshToken);
+
+    }
 }
