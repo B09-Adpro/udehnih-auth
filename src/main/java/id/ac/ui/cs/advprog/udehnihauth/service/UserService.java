@@ -17,4 +17,5 @@ public interface UserService {
     List<User> findUsersByRole(Role role);
     User addRoleToUser(UUID userId, Role role);
     UserResponse convertToDto(User user);
+    void deleteUser(UUID id);
 }
