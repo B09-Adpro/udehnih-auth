@@ -14,6 +14,8 @@ import java.security.Key;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Function;
 
 @Service
@@ -27,6 +29,8 @@ public class JwtService {
 
     @Value("${application.security.jwt.refresh-token.expiration}")
     private long refreshExpiration;
+
+    private final Set<String> revokedTokens = ConcurrentHashMap.newKeySet();
 
     public String extractUsername(String token) {
         return extractClaim(token, Claims::getSubject);
@@ -77,11 +81,19 @@ public class JwtService {
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
+        if (revokedTokens.contains(token)) {
+            return false;
+        }
+
         final String username = extractUsername(token);
         return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
     }
 
     public boolean isTokenValid(String token) {
+        if (revokedTokens.contains(token)) {
+            return false;
+        }
+
         try {
             return !isTokenExpired(token);
         } catch (Exception e) {
@@ -109,6 +121,10 @@ public class JwtService {
     private Key getSignInKey() {
         byte[] keyBytes = Decoders.BASE64.decode(secretKey);
         return Keys.hmacShaKeyFor(keyBytes);
+    }
+
+    public void revokeToken(String token) {
+        revokedTokens.add(token);
     }
 
     private static class UserDetailsAdapter implements UserDetails {
