@@ -65,6 +65,10 @@ public class JwtService {
         return buildToken(new HashMap<>(), new UserDetailsAdapter(user), refreshExpiration);
     }
 
+    public String getTokenId(String token) {
+        return token;
+    }
+
     private String buildToken(
             Map<String, Object> extraClaims,
             UserDetails userDetails,
@@ -78,6 +82,10 @@ public class JwtService {
                 .setExpiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(getSignInKey(), SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public boolean isTokenRevoked(String token) {
+        return revokedTokens.contains(token);
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
@@ -124,7 +132,7 @@ public class JwtService {
     }
 
     public void revokeToken(String token) {
-        revokedTokens.add(token);
+        revokedTokens.add(getTokenId(token));
     }
 
     private static class UserDetailsAdapter implements UserDetails {
