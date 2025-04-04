@@ -5,6 +5,7 @@ import id.ac.ui.cs.advprog.udehnihauth.dto.request.LoginRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.LogoutRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.RegisterRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.AuthResponse;
+import id.ac.ui.cs.advprog.udehnihauth.dto.response.ServiceResponse;
 import id.ac.ui.cs.advprog.udehnihauth.model.Gender;
 import id.ac.ui.cs.advprog.udehnihauth.service.AuthService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -108,16 +109,20 @@ class AuthControllerTest {
                 .refreshToken(refreshToken)
                 .build();
 
-
         authResponse = AuthResponse.builder()
                 .token("access-token-value")
                 .refreshToken(refreshToken)
                 .build();
 
-        doReturn(authResponse).when(authService).register(any(RegisterRequest.class));
-        doReturn(authResponse).when(authService).authenticate(any(LoginRequest.class));
-        doReturn(authResponse).when(authService).refreshToken(anyString());
-        doNothing().when(authService).logout(any(LogoutRequest.class));
+        ServiceResponse<AuthResponse> successRegisterResponse = ServiceResponse.success(authResponse, "User registered successfully");
+        ServiceResponse<AuthResponse> successLoginResponse = ServiceResponse.success(authResponse, "Login successful");
+        ServiceResponse<AuthResponse> successRefreshResponse = ServiceResponse.success(authResponse, "Token refreshed successfully");
+        ServiceResponse<Void> successLogoutResponse = ServiceResponse.success(null, "Logout successful");
+
+        when(authService.register(any(RegisterRequest.class))).thenReturn(successRegisterResponse);
+        when(authService.authenticate(any(LoginRequest.class))).thenReturn(successLoginResponse);
+        when(authService.refreshToken(anyString())).thenReturn(successRefreshResponse);
+        when(authService.logout(any(LogoutRequest.class))).thenReturn(successLogoutResponse);
     }
 
     @Test
@@ -163,8 +168,8 @@ class AuthControllerTest {
                 .password("")
                 .build();
 
-        doThrow(new IllegalArgumentException("Invalid registration data"))
-                .when(authService).register(any(RegisterRequest.class));
+        ServiceResponse<AuthResponse> errorResponse = ServiceResponse.error("Invalid registration data");
+        when(authService.register(any(RegisterRequest.class))).thenReturn(errorResponse);
 
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -174,8 +179,8 @@ class AuthControllerTest {
 
     @Test
     void loginWithInvalidCredentialsShouldReturnUnauthorized() throws Exception {
-        doThrow(new BadCredentialsException("Bad credentials"))
-                .when(authService).authenticate(any(LoginRequest.class));
+        ServiceResponse<AuthResponse> errorResponse = ServiceResponse.error("Invalid credentials");
+        when(authService.authenticate(any(LoginRequest.class))).thenReturn(errorResponse);
 
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -185,8 +190,8 @@ class AuthControllerTest {
 
     @Test
     void refreshTokenWithInvalidTokenShouldReturnBadRequest() throws Exception {
-        doThrow(new IllegalArgumentException("Invalid refresh token"))
-                .when(authService).refreshToken(anyString());
+        ServiceResponse<AuthResponse> errorResponse = ServiceResponse.error("Invalid refresh token");
+        when(authService.refreshToken(anyString())).thenReturn(errorResponse);
 
         mockMvc.perform(post("/api/v1/auth/refresh-token")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -200,6 +205,19 @@ class AuthControllerTest {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(logoutRequest)))
                 .andExpect(status().isNoContent());
+
+        verify(authService, times(1)).logout(any(LogoutRequest.class));
+    }
+
+    @Test
+    void logoutWithInvalidRequestShouldReturnBadRequest() throws Exception {
+        ServiceResponse<Void> errorResponse = ServiceResponse.error("Invalid logout request");
+        when(authService.logout(any(LogoutRequest.class))).thenReturn(errorResponse);
+
+        mockMvc.perform(post("/api/v1/auth/logout")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(logoutRequest)))
+                .andExpect(status().isBadRequest());
 
         verify(authService, times(1)).logout(any(LogoutRequest.class));
     }

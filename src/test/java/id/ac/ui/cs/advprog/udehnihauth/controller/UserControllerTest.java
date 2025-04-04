@@ -2,6 +2,7 @@ package id.ac.ui.cs.advprog.udehnihauth.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.UpdateUserRequest;
+import id.ac.ui.cs.advprog.udehnihauth.dto.response.ServiceResponse;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.UserResponse;
 import id.ac.ui.cs.advprog.udehnihauth.model.Gender;
 import id.ac.ui.cs.advprog.udehnihauth.model.Role;
@@ -115,13 +116,18 @@ class UserControllerTest {
                 .build();
         userList.add(anotherUser);
 
-        doReturn(Optional.of(testUser)).when(userService).findByEmail(anyString());
-        doReturn(userResponse).when(userService).convertToDto(any(User.class));
-        doReturn(testUser).when(userService).saveUser(any(User.class));
-        doReturn(userList).when(userService).findAllUsers();
-        doReturn(Optional.of(testUser)).when(userService).findById(any(UUID.class));
-        doReturn(userList).when(userService).findUsersByRole(any(Role.class));
-        doReturn(testUser).when(userService).addRoleToUser(any(UUID.class), any(Role.class));
+        when(userService.findByEmail(anyString())).thenReturn(Optional.of(testUser));
+        when(userService.convertToDto(any(User.class))).thenReturn(userResponse);
+        when(userService.saveUser(any(User.class))).thenReturn(testUser);
+        when(userService.findAllUsers()).thenReturn(userList);
+        when(userService.findById(any(UUID.class))).thenReturn(Optional.of(testUser));
+        when(userService.findUsersByRole(any(Role.class))).thenReturn(userList);
+
+        ServiceResponse<User> successAddRoleResponse = ServiceResponse.success(testUser, "Role added successfully");
+        when(userService.addRoleToUser(any(UUID.class), any(Role.class))).thenReturn(successAddRoleResponse);
+
+        ServiceResponse<Void> successDeleteResponse = ServiceResponse.success(null, "User deleted successfully");
+        when(userService.deleteUser(any(UUID.class))).thenReturn(successDeleteResponse);
     }
 
     @Test
@@ -188,11 +194,34 @@ class UserControllerTest {
 
     @Test
     @WithMockUser(username = "admin@example.com", roles = {"ADMIN"})
+    void addRoleToNonExistentUserShouldReturnBadRequest() throws Exception {
+        ServiceResponse<User> errorResponse = ServiceResponse.error("User not found");
+        when(userService.addRoleToUser(any(UUID.class), any(Role.class))).thenReturn(errorResponse);
+
+        mockMvc.perform(post("/api/v1/users/{id}/roles/{role}", UUID.randomUUID(), Role.TUTOR))
+                .andExpect(status().isBadRequest());
+
+        verify(userService, times(1)).addRoleToUser(any(UUID.class), any(Role.class));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@example.com", roles = {"ADMIN"})
     void deleteUserShouldReturnNoContent() throws Exception {
         mockMvc.perform(delete("/api/v1/users/{id}", userId))
                 .andExpect(status().isNoContent());
 
-        verify(userService, times(1)).findById(any(UUID.class));
+        verify(userService, times(1)).deleteUser(any(UUID.class));
+    }
+
+    @Test
+    @WithMockUser(username = "admin@example.com", roles = {"ADMIN"})
+    void deleteNonExistentUserShouldReturnBadRequest() throws Exception {
+        ServiceResponse<Void> errorResponse = ServiceResponse.error("User not found");
+        when(userService.deleteUser(any(UUID.class))).thenReturn(errorResponse);
+
+        mockMvc.perform(delete("/api/v1/users/{id}", UUID.randomUUID()))
+                .andExpect(status().isBadRequest());
+
         verify(userService, times(1)).deleteUser(any(UUID.class));
     }
 
@@ -211,21 +240,21 @@ class UserControllerTest {
 
     @Test
     @WithMockUser(username = "test@example.com")
-    void getCurrentUserWithNonExistentUserShouldReturnBadRequest() throws Exception {
-        doReturn(Optional.empty()).when(userService).findByEmail(anyString());
+    void getCurrentUserWithNonExistentUserShouldReturnNotFound() throws Exception {
+        when(userService.findByEmail(anyString())).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/v1/users/me"))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isNotFound());
 
         verify(userService, times(1)).findByEmail("test@example.com");
     }
 
     @Test
     @WithMockUser(username = "admin@example.com", roles = {"ADMIN"})
-    void getUserByIdWithNonExistentUserShouldReturnBadRequest() throws Exception {
-        doReturn(Optional.empty()).when(userService).findById(any(UUID.class));
+    void getUserByIdWithNonExistentUserShouldReturnNotFound() throws Exception {
+        when(userService.findById(any(UUID.class))).thenReturn(Optional.empty());
 
         mockMvc.perform(get("/api/v1/users/{id}", UUID.randomUUID()))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isNotFound());
     }
 }

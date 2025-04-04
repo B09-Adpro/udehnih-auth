@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.udehnihauth.service;
 
+import id.ac.ui.cs.advprog.udehnihauth.dto.response.ServiceResponse;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.UserResponse;
 import id.ac.ui.cs.advprog.udehnihauth.model.Role;
 import id.ac.ui.cs.advprog.udehnihauth.model.User;
@@ -15,7 +16,7 @@ public interface UserService {
     boolean existsByEmail(String email);
     List<User> findAllUsers();
     List<User> findUsersByRole(Role role);
-    User addRoleToUser(UUID userId, Role role);
+    ServiceResponse<User> addRoleToUser(UUID userId, Role role);
     UserResponse convertToDto(User user);
-    void deleteUser(UUID id);
+    ServiceResponse<Void> deleteUser(UUID id);
 }

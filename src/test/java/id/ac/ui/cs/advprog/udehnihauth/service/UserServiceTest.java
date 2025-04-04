@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.udehnihauth.service;
 
+import id.ac.ui.cs.advprog.udehnihauth.dto.response.ServiceResponse;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.UserResponse;
 import id.ac.ui.cs.advprog.udehnihauth.model.Gender;
 import id.ac.ui.cs.advprog.udehnihauth.model.Role;
@@ -19,7 +20,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 
@@ -126,25 +126,55 @@ class UserServiceTest {
     }
 
     @Test
-    void whenAddRoleToUser_thenRoleIsAdded() {
+    void whenAddRoleToUser_thenRoleIsAddedAndReturnSuccessServiceResponse() {
+        User userWithNewRole = User.builder()
+                .id(testId)
+                .email("test@example.com")
+                .fullName("Test User")
+                .password("password123")
+                .registrationDate(LocalDateTime.now())
+                .gender(Gender.MALE)
+                .build();
+        userWithNewRole.addRole(Role.STUDENT);
+        userWithNewRole.addRole(Role.TUTOR);
+
         when(userRepository.findById(testId)).thenReturn(Optional.of(testUser));
-        when(userRepository.save(any(User.class))).thenReturn(testUser);
+        when(userRepository.save(any(User.class))).thenReturn(userWithNewRole);
 
-        User updatedUser = userService.addRoleToUser(testId, Role.TUTOR);
+        ServiceResponse<User> response = userService.addRoleToUser(testId, Role.TUTOR);
 
-        assertThat(updatedUser.getRoles()).contains(Role.TUTOR);
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getData().getRoles()).contains(Role.TUTOR);
         verify(userRepository, times(1)).findById(testId);
-        verify(userRepository, times(1)).save(testUser);
+        verify(userRepository, times(1)).save(any(User.class));
     }
 
     @Test
-    void whenAddRoleToNonExistentUser_thenThrowException() {
+    void whenAddRoleToNonExistentUser_thenReturnErrorServiceResponse() {
         UUID nonExistentId = UUID.randomUUID();
         when(userRepository.findById(nonExistentId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> userService.addRoleToUser(nonExistentId, Role.TUTOR))
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("User not found");
+        ServiceResponse<User> response = userService.addRoleToUser(nonExistentId, Role.TUTOR);
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getMessage()).contains("User not found");
+        verify(userRepository, times(1)).findById(nonExistentId);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void whenAddExistingRoleToUser_thenReturnErrorServiceResponse() {
+        when(userRepository.findById(testId)).thenReturn(Optional.of(testUser));
+
+        ServiceResponse<User> response = userService.addRoleToUser(testId, Role.STUDENT);
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getMessage()).contains("User already has role");
+        verify(userRepository, times(1)).findById(testId);
+        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -157,5 +187,32 @@ class UserServiceTest {
         assertThat(userResponse.getFullName()).isEqualTo(testUser.getFullName());
         assertThat(userResponse.getGender()).isEqualTo(testUser.getGender());
         assertThat(userResponse.getRoles()).containsExactlyInAnyOrderElementsOf(testUser.getRoles());
+    }
+
+    @Test
+    void whenDeleteUser_thenReturnSuccessServiceResponse() {
+        when(userRepository.existsById(testId)).thenReturn(true);
+        doNothing().when(userRepository).deleteById(testId);
+
+        ServiceResponse<Void> response = userService.deleteUser(testId);
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isTrue();
+        assertThat(response.getMessage()).contains("User deleted successfully");
+        verify(userRepository, times(1)).existsById(testId);
+        verify(userRepository, times(1)).deleteById(testId);
+    }
+
+    @Test
+    void whenDeleteNonExistentUser_thenReturnErrorServiceResponse() {
+        when(userRepository.existsById(testId)).thenReturn(false);
+
+        ServiceResponse<Void> response = userService.deleteUser(testId);
+
+        assertThat(response).isNotNull();
+        assertThat(response.isSuccess()).isFalse();
+        assertThat(response.getMessage()).contains("User not found");
+        verify(userRepository, times(1)).existsById(testId);
+        verify(userRepository, never()).deleteById(any());
     }
 }

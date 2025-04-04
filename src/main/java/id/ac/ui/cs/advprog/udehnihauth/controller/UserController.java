@@ -1,19 +1,21 @@
 package id.ac.ui.cs.advprog.udehnihauth.controller;
 
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.UpdateUserRequest;
+import id.ac.ui.cs.advprog.udehnihauth.dto.response.ServiceResponse;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.UserResponse;
 import id.ac.ui.cs.advprog.udehnihauth.model.Role;
 import id.ac.ui.cs.advprog.udehnihauth.model.User;
 import id.ac.ui.cs.advprog.udehnihauth.service.UserService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
-import id.ac.ui.cs.advprog.udehnihauth.repository.UserRepository;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -24,27 +26,29 @@ public class UserController {
 
     private final UserService userService;
 
-    private final UserRepository userRepository;
-
     @GetMapping("/me")
     public ResponseEntity<?> getCurrentUser(Authentication authentication) {
-        try {
-            User user = userService.findByEmail(authentication.getName())
-                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
-            return ResponseEntity.ok(userService.convertToDto(user));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+        Optional<User> userOptional = userService.findByEmail(authentication.getName());
+
+        if (userOptional.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
         }
+
+        return ResponseEntity.ok(userService.convertToDto(userOptional.get()));
     }
 
     @PutMapping("/me")
-    public ResponseEntity<UserResponse> updateCurrentUser(
+    public ResponseEntity<?> updateCurrentUser(
             Authentication authentication,
             @RequestBody @Valid UpdateUserRequest request
     ) {
-        String email = authentication.getName();
-        User user = userService.findByEmail(email)
-                .orElseThrow(() -> new IllegalArgumentException("User not found"));
+        Optional<User> userOptional = userService.findByEmail(authentication.getName());
+
+        if (userOptional.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
+        }
+
+        User user = userOptional.get();
 
         if (request.getFullName() != null) {
             user.setFullName(request.getFullName());
@@ -76,13 +80,13 @@ public class UserController {
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
     public ResponseEntity<?> getUserById(@PathVariable UUID id) {
-        try {
-            User user = userService.findById(id)
-                    .orElseThrow(() -> new IllegalArgumentException("User not found"));
-            return ResponseEntity.ok(userService.convertToDto(user));
-        } catch (IllegalArgumentException e) {
-            return ResponseEntity.badRequest().body(e.getMessage());
+        Optional<User> userOptional = userService.findById(id);
+
+        if (userOptional.isEmpty()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body("User not found");
         }
+
+        return ResponseEntity.ok(userService.convertToDto(userOptional.get()));
     }
 
     @GetMapping("/role/{role}")
@@ -97,21 +101,28 @@ public class UserController {
 
     @PostMapping("/{id}/roles/{role}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<UserResponse> addRoleToUser(
+    public ResponseEntity<?> addRoleToUser(
             @PathVariable UUID id,
             @PathVariable Role role
     ) {
-        User updatedUser = userService.addRoleToUser(id, role);
-        return ResponseEntity.ok(userService.convertToDto(updatedUser));
+        ServiceResponse<User> response = userService.addRoleToUser(id, role);
+
+        if (response.isSuccess()) {
+            return ResponseEntity.ok(userService.convertToDto(response.getData()));
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response.getMessage());
+        }
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ResponseEntity<Void> deleteUser(@PathVariable UUID id) {
-        userService.findById(id).orElseThrow(() -> new IllegalArgumentException("User not found"));
+    public ResponseEntity<?> deleteUser(@PathVariable UUID id) {
+        ServiceResponse<Void> response = userService.deleteUser(id);
 
-        userService.deleteUser(id);
-
-        return ResponseEntity.noContent().build();
+        if (response.isSuccess()) {
+            return ResponseEntity.noContent().build();
+        } else {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response.getMessage());
+        }
     }
 }

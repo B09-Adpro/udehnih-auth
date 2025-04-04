@@ -1,5 +1,6 @@
 package id.ac.ui.cs.advprog.udehnihauth.service;
 
+import id.ac.ui.cs.advprog.udehnihauth.dto.response.ServiceResponse;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.UserResponse;
 import id.ac.ui.cs.advprog.udehnihauth.model.Role;
 import id.ac.ui.cs.advprog.udehnihauth.model.User;
@@ -56,11 +57,34 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public User addRoleToUser(UUID userId, Role role) {
-        User user = userRepository.findById(userId)
-                .orElseThrow(() -> new IllegalArgumentException("User not found with ID: " + userId));
-        user.addRole(role);
-        return userRepository.save(user);
+    public ServiceResponse<User> addRoleToUser(UUID userId, Role role) {
+        try {
+            if (userId == null) {
+                return ServiceResponse.error("User ID is required");
+            }
+
+            if (role == null) {
+                return ServiceResponse.error("Role is required");
+            }
+
+            Optional<User> userOptional = userRepository.findById(userId);
+            if (userOptional.isEmpty()) {
+                return ServiceResponse.error("User not found with ID: " + userId);
+            }
+
+            User user = userOptional.get();
+
+            if (user.hasRole(role)) {
+                return ServiceResponse.error("User already has role: " + role);
+            }
+
+            user.addRole(role);
+            User savedUser = userRepository.save(user);
+
+            return ServiceResponse.success(savedUser, "Role " + role + " added to user successfully");
+        } catch (Exception e) {
+            return ServiceResponse.error("Failed to add role to user: " + e.getMessage());
+        }
     }
 
     @Override
@@ -79,10 +103,20 @@ public class UserServiceImpl implements UserService {
 
     @Override
     @Transactional
-    public void deleteUser(UUID id) {
-        if (!userRepository.existsById(id)) {
-            throw new IllegalArgumentException("User not found with ID: " + id);
+    public ServiceResponse<Void> deleteUser(UUID id) {
+        try {
+            if (id == null) {
+                return ServiceResponse.error("User ID is required");
+            }
+
+            if (!userRepository.existsById(id)) {
+                return ServiceResponse.error("User not found with ID: " + id);
+            }
+
+            userRepository.deleteById(id);
+            return ServiceResponse.success(null, "User deleted successfully");
+        } catch (Exception e) {
+            return ServiceResponse.error("Failed to delete user: " + e.getMessage());
         }
-        userRepository.deleteById(id);
     }
 }
