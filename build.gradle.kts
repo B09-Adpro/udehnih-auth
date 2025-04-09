@@ -33,21 +33,11 @@ repositories {
 dependencies {
 	implementation("org.springframework.boot:spring-boot-starter-thymeleaf")
 	implementation("org.springframework.boot:spring-boot-starter-web")
-	implementation("org.springframework.boot:spring-boot-starter-data-jpa")
-	implementation("org.springframework.boot:spring-boot-starter-security")
-	implementation("io.jsonwebtoken:jjwt-api:0.11.5")
-	implementation("org.postgresql:postgresql")
-
-	runtimeOnly("io.jsonwebtoken:jjwt-impl:0.11.5")
-	runtimeOnly("io.jsonwebtoken:jjwt-jackson:0.11.5")
-
 	compileOnly("org.projectlombok:lombok")
 	developmentOnly("org.springframework.boot:spring-boot-devtools")
 	annotationProcessor("org.springframework.boot:spring-boot-configuration-processor")
 	annotationProcessor("org.projectlombok:lombok")
-
 	testImplementation("org.springframework.boot:spring-boot-starter-test")
-	testImplementation("org.springframework.security:spring-security-test")
 	testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 	testImplementation("org.seleniumhq.selenium:selenium-java:$seleniumJavaVersion")
 	testImplementation("io.github.bonigarcia:selenium-jupiter:$seleniumJupiterVersion")
@@ -96,11 +86,12 @@ sonarqube {
 		property("sonar.projectKey", System.getenv("SONAR_PROJECT_KEY"))
 		property("sonar.organization", System.getenv("SONAR_ORGANIZATION"))
 		property("sonar.host.url", "https://sonarcloud.io")
-		property("sonar.sources", "src/main/java")
-		property("sonar.tests", "src/test/java")
-		property("sonar.java.binaries", "build/classes/java/main")
-		property("sonar.java.test.binaries", "build/classes/java/test")
-		property("sonar.java.libraries", "build/libs/*.jar")
-		property("sonar.coverage.jacoco.xmlReportPaths", "build/reports/jacoco/test/jacocoTestReport.xml")
+		property("sonar.sources", listOf("src/main/java"))
+		property("sonar.tests", listOf("src/test/java"))
+		property("sonar.java.binaries", listOf("build/classes/java/main"))
+		property("sonar.java.test.binaries", listOf("build/classes/java/test"))
+		property("sonar.java.libraries", listOf("build/libs/*.jar"))
+		property("sonar.coverage.jacoco.xmlReportPaths", listOf("build/reports/jacoco/test/jacocoTestReport.xml"))
+		property("sonar.gradle.skipCompile", "true")
 	}
 }
