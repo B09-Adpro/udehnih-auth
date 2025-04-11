@@ -45,7 +45,7 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: udehnih-review-rating
+          name: udehnih-auth
           path: build/libs/*.jar
 
   deploy:
@@ -59,7 +59,7 @@ jobs:
       - name: Download build artifact
         uses: actions/download-artifact@v4
         with:
-          name: udehnih-review-rating
+          name: udehnih-auth
           path: build/libs/
 
       - name: Set up AWS CLI
@@ -77,8 +77,8 @@ jobs:
           echo "  aws:elasticbeanstalk:application:environment:" >> .ebextensions/env.config
           echo "    SERVER_PORT: 5000" >> .ebextensions/env.config
           echo "    SPRING_PROFILES_ACTIVE: staging" >> .ebextensions/env.config
-          echo "web: java -jar build/libs/udehnih-review-rating-0.0.1-SNAPSHOT.jar" > Procfile
-          zip -r deploy.zip build/libs/udehnih-review-rating-0.0.1-SNAPSHOT.jar Procfile .ebextensions/
+          echo "web: java -jar build/libs/udehnih-auth-0.0.1-SNAPSHOT.jar" > Procfile
+          zip -r deploy.zip build/libs/udehnih-auth-0.0.1-SNAPSHOT.jar Procfile .ebextensions/
 
       - name: Generate timestamp for unique version label
         id: timestamp
