@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.Date;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +32,7 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
+    private final TokenBlacklistService tokenBlacklistService;
 
     @Override
     @Transactional
@@ -78,6 +80,10 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     public void logout(String token) {
+        if (token != null) {
+            Date expiry = jwtService.extractExpiration(token);
+            tokenBlacklistService.addToBlacklist(token, expiry);
+        }
     }
 
     private UserDetails createUserDetails(User user) {
