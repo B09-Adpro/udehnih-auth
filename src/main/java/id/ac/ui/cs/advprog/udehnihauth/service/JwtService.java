@@ -14,21 +14,30 @@ import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.function.Function;
+import org.springframework.beans.factory.annotation.Value;
 
 @Service
 public class JwtService {
 
+    @Value("${jwt.secret-key}")
     private String secretKey;
+
+    @Value("${jwt.expiration}")
     private long jwtExpiration;
+
+    @Value("${jwt.refresh-expiration}")
     private long refreshExpiration;
+
+    private final TokenBlacklistService tokenBlacklistService;
 
     @PostConstruct
     public void init() {
-        secretKey = System.getenv("JWT_SECRET_KEY");
+        System.out.println("JWT Secret Key: " + (secretKey != null ? "AVAILABLE" : "NULL"));
+        System.out.println("JWT Expiration: " + jwtExpiration);
+    }
 
-        String expiration = System.getenv("JWT_EXPIRATION");
-
-        String refreshExp = System.getenv("JWT_REFRESH_EXPIRATION");
+    public JwtService(TokenBlacklistService tokenBlacklistService) {
+        this.tokenBlacklistService = tokenBlacklistService;
     }
 
     public String extractUsername(String token) {
@@ -72,14 +81,14 @@ public class JwtService {
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
         final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token);
+        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token) &&  !tokenBlacklistService.isBlacklisted(token);
     }
 
     private boolean isTokenExpired(String token) {
         return extractExpiration(token).before(new Date());
     }
 
-    private Date extractExpiration(String token) {
+    public Date extractExpiration(String token) {
         return extractClaim(token, Claims::getExpiration);
     }
 
