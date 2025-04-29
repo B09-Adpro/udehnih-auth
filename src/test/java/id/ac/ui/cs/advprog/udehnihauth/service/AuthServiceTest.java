@@ -8,7 +8,6 @@ import id.ac.ui.cs.advprog.udehnihauth.model.RoleType;
 import id.ac.ui.cs.advprog.udehnihauth.model.User;
 import id.ac.ui.cs.advprog.udehnihauth.repository.RoleRepository;
 import id.ac.ui.cs.advprog.udehnihauth.repository.UserRepository;
-import id.ac.ui.cs.advprog.udehnihauth.service.AuthServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,7 +22,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Optional;
-import java.util.Set;
+import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
@@ -40,6 +39,9 @@ class AuthServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
 
     @Mock
     private JwtService jwtService;
@@ -156,5 +158,17 @@ class AuthServiceTest {
         assertEquals("User not found", exception.getMessage());
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(userRepository).findByEmail(loginRequest.getEmail());
+    }
+
+    @Test
+    void testLogout() {
+        String token = "jwt.token.here";
+        Date expiryDate = new Date(System.currentTimeMillis() + 3600000);
+
+        when(jwtService.extractExpiration(token)).thenReturn(expiryDate);
+
+        authService.logout(token);
+
+        verify(tokenBlacklistService).addToBlacklist(token, expiryDate);
     }
 }
