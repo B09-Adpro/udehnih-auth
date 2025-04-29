@@ -3,6 +3,7 @@ package id.ac.ui.cs.advprog.udehnihauth.service;
 import io.jsonwebtoken.Claims;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -12,17 +13,24 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
 
+@ExtendWith(MockitoExtension.class)
 class JwtServiceTest {
 
     private JwtService jwtService;
     private UserDetails userDetails;
 
+    @Mock
+    private TokenBlacklistService tokenBlacklistService;
+
     @BeforeEach
     void setUp() {
-        jwtService = new JwtService();
+        jwtService = new JwtService(tokenBlacklistService);
         ReflectionTestUtils.setField(jwtService, "secretKey", "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970");
-        ReflectionTestUtils.setField(jwtService, "jwtExpiration", 86400000); // 1 day in milliseconds
+        ReflectionTestUtils.setField(jwtService, "jwtExpiration", 86400000);
+        ReflectionTestUtils.setField(jwtService, "refreshExpiration", 604800000);
 
         userDetails = new User("test@example.com", "password", new ArrayList<>());
     }
