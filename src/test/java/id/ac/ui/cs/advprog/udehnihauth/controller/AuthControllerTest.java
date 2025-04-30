@@ -1,9 +1,11 @@
 package id.ac.ui.cs.advprog.udehnihauth.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import id.ac.ui.cs.advprog.udehnihauth.dto.request.TokenRefreshRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.AuthResponse;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.RegisterRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.LoginRequest;
+import id.ac.ui.cs.advprog.udehnihauth.dto.response.TokenRefreshResponse;
 import id.ac.ui.cs.advprog.udehnihauth.model.RoleType;
 import id.ac.ui.cs.advprog.udehnihauth.service.AuthService;
 import org.junit.jupiter.api.BeforeEach;
@@ -23,6 +25,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
+import static org.mockito.Mockito.doNothing;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.isNull;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerTest {
@@ -101,12 +106,40 @@ class AuthControllerTest {
     @Test
     void testLogout() throws Exception {
         String token = "Bearer jwt.token.here";
-        doNothing().when(authService).logout(anyString());
+
+        doNothing().when(authService).logout(anyString(), isNull());
 
         mockMvc.perform(post("/auth/logout")
                         .header("Authorization", token))
-                .andExpect(status().isOk());
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.success").value(true))
+                .andExpect(jsonPath("$.message").value("Logout successful. Your session has been terminated."));
 
-        verify(authService).logout(anyString());
+        verify(authService).logout(anyString(), isNull());
+    }
+
+    @Test
+    void testRefreshToken() throws Exception {
+        TokenRefreshRequest refreshRequest = TokenRefreshRequest.builder()
+                .refreshToken("refresh-token")
+                .build();
+
+        TokenRefreshResponse refreshResponse = TokenRefreshResponse.builder()
+                .accessToken("new-access-token")
+                .refreshToken("refresh-token")
+                .build();
+
+        when(authService.refreshToken(any(TokenRefreshRequest.class))).thenReturn(refreshResponse);
+
+        mockMvc.perform(post("/auth/refresh-token")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(refreshRequest)))
+                .andExpect(status().isOk())
+                .andExpect(content().contentType(MediaType.APPLICATION_JSON))
+                .andExpect(jsonPath("$.accessToken").value(refreshResponse.getAccessToken()))
+                .andExpect(jsonPath("$.refreshToken").value(refreshResponse.getRefreshToken()));
+
+        verify(authService).refreshToken(any(TokenRefreshRequest.class));
     }
 }
