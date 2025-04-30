@@ -3,6 +3,10 @@ package id.ac.ui.cs.advprog.udehnihauth.service;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.AuthResponse;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.LoginRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.RegisterRequest;
+import id.ac.ui.cs.advprog.udehnihauth.dto.request.TokenRefreshRequest;
+import id.ac.ui.cs.advprog.udehnihauth.dto.response.TokenRefreshResponse;
+import id.ac.ui.cs.advprog.udehnihauth.exception.TokenRefreshException;
+import id.ac.ui.cs.advprog.udehnihauth.model.RefreshToken;
 import id.ac.ui.cs.advprog.udehnihauth.model.Role;
 import id.ac.ui.cs.advprog.udehnihauth.model.RoleType;
 import id.ac.ui.cs.advprog.udehnihauth.model.User;
@@ -18,7 +22,9 @@ import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import static org.mockito.ArgumentMatchers.anyLong;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.HashSet;
 import java.util.Optional;
@@ -26,6 +32,8 @@ import java.util.Date;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -44,6 +52,9 @@ class AuthServiceTest {
     private TokenBlacklistService tokenBlacklistService;
 
     @Mock
+    private RefreshTokenService refreshTokenService;
+
+    @Mock
     private JwtService jwtService;
 
     @Mock
@@ -57,6 +68,7 @@ class AuthServiceTest {
     private User user;
     private Role studentRole;
     private String jwtToken;
+    private RefreshToken refreshToken;
 
     @BeforeEach
     void setUp() {
@@ -85,20 +97,39 @@ class AuthServiceTest {
                 .build();
 
         jwtToken = "jwt.token.here";
+
+        refreshToken = new RefreshToken();
+        refreshToken.setId(1L);
+        refreshToken.setUser(user);
+        refreshToken.setToken("refresh-token");
+        refreshToken.setExpiryDate(Instant.now().plusSeconds(600));
     }
 
     @Test
     void testRegister() {
         when(userRepository.existsByEmail(anyString())).thenReturn(false);
-        when(roleRepository.findByName(RoleType.STUDENT)).thenReturn(Optional.of(studentRole));
+        when(roleRepository.findByName(any(RoleType.class))).thenReturn(Optional.of(studentRole));
         when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
-        when(userRepository.save(any(User.class))).thenReturn(user);
+
+        User savedUser = new User();
+        savedUser.setId(1L);
+        savedUser.setEmail(registerRequest.getEmail());
+        savedUser.setName(registerRequest.getName());
+        savedUser.setPassword("encodedPassword");
+        savedUser.setRegistrationDate(LocalDateTime.now());
+        savedUser.setRoles(new HashSet<>());
+        savedUser.getRoles().add(studentRole);
+
+        when(userRepository.save(any(User.class))).thenReturn(savedUser);
         when(jwtService.generateToken(any())).thenReturn(jwtToken);
+
+        when(refreshTokenService.createRefreshToken(anyLong())).thenReturn(refreshToken);
 
         AuthResponse response = authService.register(registerRequest);
 
         assertNotNull(response);
         assertEquals(jwtToken, response.getToken());
+        assertEquals("refresh-token", response.getRefreshToken());
         assertEquals(registerRequest.getEmail(), response.getEmail());
         assertEquals(registerRequest.getName(), response.getName());
         assertTrue(response.getRoles().contains(RoleType.STUDENT));
@@ -108,6 +139,8 @@ class AuthServiceTest {
         verify(passwordEncoder).encode(registerRequest.getPassword());
         verify(userRepository).save(any(User.class));
         verify(jwtService).generateToken(any());
+
+        verify(refreshTokenService).createRefreshToken(anyLong());
     }
 
     @Test
@@ -116,6 +149,7 @@ class AuthServiceTest {
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
         when(jwtService.generateToken(any())).thenReturn(jwtToken);
+        when(refreshTokenService.createRefreshToken(anyLong())).thenReturn(refreshToken);
 
         user.getRoles().add(studentRole);
 
@@ -123,6 +157,7 @@ class AuthServiceTest {
 
         assertNotNull(response);
         assertEquals(jwtToken, response.getToken());
+        assertEquals("refresh-token", response.getRefreshToken());
         assertEquals(user.getEmail(), response.getEmail());
         assertEquals(user.getName(), response.getName());
         assertTrue(response.getRoles().contains(RoleType.STUDENT));
@@ -130,6 +165,7 @@ class AuthServiceTest {
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(userRepository).findByEmail(loginRequest.getEmail());
         verify(jwtService).generateToken(any());
+        verify(refreshTokenService).createRefreshToken(anyLong());
     }
 
     @Test
@@ -170,5 +206,57 @@ class AuthServiceTest {
         authService.logout(token);
 
         verify(tokenBlacklistService).addToBlacklist(token, expiryDate);
+    }
+
+    @Test
+    void testLogoutWithRefreshToken() {
+        String token = "jwt.token.here";
+        String refreshTokenStr = "refresh-token";
+        Date expiryDate = new Date(System.currentTimeMillis() + 3600000);
+
+        when(jwtService.extractExpiration(token)).thenReturn(expiryDate);
+        when(refreshTokenService.findByToken(refreshTokenStr)).thenReturn(Optional.of(refreshToken));
+
+        authService.logout(token, refreshTokenStr);
+
+        verify(tokenBlacklistService).addToBlacklist(token, expiryDate);
+        verify(refreshTokenService).findByToken(refreshTokenStr);
+        verify(refreshTokenService).deleteToken(refreshToken);
+    }
+
+    @Test
+    void testRefreshToken() {
+        TokenRefreshRequest request = TokenRefreshRequest.builder()
+                .refreshToken("refresh-token")
+                .build();
+
+        when(refreshTokenService.findByToken(anyString())).thenReturn(Optional.of(refreshToken));
+        when(refreshTokenService.verifyExpiration(any(RefreshToken.class))).thenReturn(refreshToken);
+        when(jwtService.generateToken(any())).thenReturn("new-access-token");
+
+        TokenRefreshResponse response = authService.refreshToken(request);
+
+        assertNotNull(response);
+        assertEquals("new-access-token", response.getAccessToken());
+        assertEquals("refresh-token", response.getRefreshToken());
+
+        verify(refreshTokenService).findByToken(request.getRefreshToken());
+        verify(refreshTokenService).verifyExpiration(refreshToken);
+        verify(jwtService).generateToken(any());
+    }
+
+    @Test
+    void testRefreshToken_InvalidToken() {
+        TokenRefreshRequest request = TokenRefreshRequest.builder()
+                .refreshToken("invalid-token")
+                .build();
+
+        when(refreshTokenService.findByToken(anyString())).thenReturn(Optional.empty());
+
+        Exception exception = assertThrows(TokenRefreshException.class, () -> {
+            authService.refreshToken(request);
+        });
+
+        assertTrue(exception.getMessage().contains("Refresh token is not in database!"));
     }
 }
