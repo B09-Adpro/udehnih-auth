@@ -10,7 +10,7 @@ import id.ac.ui.cs.advprog.udehnihauth.model.RefreshToken;
 import id.ac.ui.cs.advprog.udehnihauth.model.Role;
 import id.ac.ui.cs.advprog.udehnihauth.model.RoleType;
 import id.ac.ui.cs.advprog.udehnihauth.model.User;
-import id.ac.ui.cs.advprog.udehnihauth.model.UserRoleManager;
+import id.ac.ui.cs.advprog.udehnihauth.util.UserRoleManager;
 import id.ac.ui.cs.advprog.udehnihauth.repository.RoleRepository;
 import id.ac.ui.cs.advprog.udehnihauth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
