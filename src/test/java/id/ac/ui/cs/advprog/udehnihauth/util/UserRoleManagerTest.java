@@ -1,5 +1,8 @@
-package id.ac.ui.cs.advprog.udehnihauth.model;
+package id.ac.ui.cs.advprog.udehnihauth.util;
 
+import id.ac.ui.cs.advprog.udehnihauth.model.Role;
+import id.ac.ui.cs.advprog.udehnihauth.model.RoleType;
+import id.ac.ui.cs.advprog.udehnihauth.model.User;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
