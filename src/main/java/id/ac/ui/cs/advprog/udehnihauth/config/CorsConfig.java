@@ -8,6 +8,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
 import java.util.Arrays;
+import java.util.Collections;
 
 @Configuration
 public class CorsConfig {
@@ -29,7 +30,13 @@ public class CorsConfig {
         CorsConfiguration configuration = new CorsConfiguration();
 
         configuration.setAllowedOrigins(Arrays.asList(allowedOrigins.split(",")));
-        configuration.setAllowedMethods(Arrays.asList(allowedMethods.split(",")));
+
+        if (allowedMethods.equalsIgnoreCase("ALL") || allowedMethods.equals("*")) {
+            configuration.setAllowedMethods(Collections.singletonList("*"));
+             configuration.setAllowedMethods(Arrays.asList("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
+        } else {
+            configuration.setAllowedMethods(Arrays.asList(allowedMethods.split(",")));
+        }
 
         if (allowedHeaders.equals("\"*\"") || allowedHeaders.equals("*")) {
             configuration.addAllowedHeader("*");
