@@ -8,7 +8,6 @@ import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
 
 @ActiveProfiles("test")
-@Import(CorsConfigTest.class)
 @SpringBootTest
 @TestPropertySource(locations = "classpath:application-test.yml")
 class UdehnihAuthApplicationTests {
