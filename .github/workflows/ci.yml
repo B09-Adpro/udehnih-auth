@@ -25,6 +25,11 @@ jobs:
 
       - name: Build with Gradle
         run: ./gradlew build
+        env:
+          ALLOWED_ORIGINS: ${{ secrets.ALLOWED_ORIGINS }}
+          ALLOWED_METHODS: ${{ secrets.ALLOWED_METHODS }}
+          ALLOWED_HEADERS: ${{ secrets.ALLOWED_HEADERS }}
+          ALLOWED_CREDENTIALS: ${{ secrets.ALLOWED_CREDENTIALS }}
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
