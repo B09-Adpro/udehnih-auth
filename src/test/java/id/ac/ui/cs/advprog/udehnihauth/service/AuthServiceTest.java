@@ -1,9 +1,9 @@
 package id.ac.ui.cs.advprog.udehnihauth.service;
 
-import id.ac.ui.cs.advprog.udehnihauth.dto.response.AuthResponse;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.LoginRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.RegisterRequest;
 import id.ac.ui.cs.advprog.udehnihauth.dto.request.TokenRefreshRequest;
+import id.ac.ui.cs.advprog.udehnihauth.dto.response.AuthResponse;
 import id.ac.ui.cs.advprog.udehnihauth.dto.response.TokenRefreshResponse;
 import id.ac.ui.cs.advprog.udehnihauth.exception.TokenRefreshException;
 import id.ac.ui.cs.advprog.udehnihauth.model.RefreshToken;
@@ -21,19 +21,15 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
-import static org.mockito.ArgumentMatchers.anyLong;
 
 import java.time.Instant;
 import java.time.LocalDateTime;
-import java.util.HashSet;
-import java.util.Optional;
-import java.util.Date;
+import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
-import static org.mockito.ArgumentMatchers.anyLong;
+import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
@@ -106,7 +102,7 @@ class AuthServiceTest {
     }
 
     @Test
-    void testRegister() {
+    void register_WithNewUser_ShouldCreateUserAndReturnToken() {
         when(userRepository.existsByEmail(anyString())).thenReturn(false);
         when(roleRepository.findByName(any(RoleType.class))).thenReturn(Optional.of(studentRole));
         when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
@@ -121,8 +117,7 @@ class AuthServiceTest {
         savedUser.getRoles().add(studentRole);
 
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(jwtService.generateToken(any())).thenReturn(jwtToken);
-
+        when(jwtService.generateToken(any(UserDetails.class))).thenReturn(jwtToken);
         when(refreshTokenService.createRefreshToken(anyLong())).thenReturn(refreshToken);
 
         AuthResponse response = authService.register(registerRequest);
@@ -132,23 +127,36 @@ class AuthServiceTest {
         assertEquals("refresh-token", response.getRefreshToken());
         assertEquals(registerRequest.getEmail(), response.getEmail());
         assertEquals(registerRequest.getName(), response.getName());
+
         assertTrue(response.getRoles().contains(RoleType.STUDENT));
 
         verify(userRepository).existsByEmail(registerRequest.getEmail());
         verify(roleRepository).findByName(RoleType.STUDENT);
         verify(passwordEncoder).encode(registerRequest.getPassword());
         verify(userRepository).save(any(User.class));
-        verify(jwtService).generateToken(any());
-
+        verify(jwtService).generateToken(any(UserDetails.class));
         verify(refreshTokenService).createRefreshToken(anyLong());
     }
 
     @Test
-    void testLogin() {
+    void register_WithExistingEmail_ShouldThrowException() {
+        when(userRepository.existsByEmail(anyString())).thenReturn(true);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> {
+            authService.register(registerRequest);
+        });
+
+        assertEquals("Email is already in use!", exception.getMessage());
+        verify(userRepository).existsByEmail(registerRequest.getEmail());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void login_WithValidCredentials_ShouldReturnToken() {
         Authentication authentication = mock(Authentication.class);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
-        when(jwtService.generateToken(any())).thenReturn(jwtToken);
+        when(jwtService.generateToken(any(UserDetails.class))).thenReturn(jwtToken);
         when(refreshTokenService.createRefreshToken(anyLong())).thenReturn(refreshToken);
 
         user.getRoles().add(studentRole);
@@ -164,25 +172,12 @@ class AuthServiceTest {
 
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(userRepository).findByEmail(loginRequest.getEmail());
-        verify(jwtService).generateToken(any());
+        verify(jwtService).generateToken(any(UserDetails.class));
         verify(refreshTokenService).createRefreshToken(anyLong());
     }
 
     @Test
-    void testRegisterWithExistingEmail() {
-        when(userRepository.existsByEmail(anyString())).thenReturn(true);
-
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            authService.register(registerRequest);
-        });
-
-        assertEquals("Email is already in use!", exception.getMessage());
-        verify(userRepository).existsByEmail(registerRequest.getEmail());
-        verify(userRepository, never()).save(any(User.class));
-    }
-
-    @Test
-    void testLoginWithNonExistentUser() {
+    void login_WithNonExistentUser_ShouldThrowException() {
         Authentication authentication = mock(Authentication.class);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
@@ -197,19 +192,19 @@ class AuthServiceTest {
     }
 
     @Test
-    void testLogout() {
+    void logout_ShouldAddTokenToBlacklist() {
         String token = "jwt.token.here";
         Date expiryDate = new Date(System.currentTimeMillis() + 3600000);
-
         when(jwtService.extractExpiration(token)).thenReturn(expiryDate);
 
         authService.logout(token);
 
+        verify(jwtService).extractExpiration(token);
         verify(tokenBlacklistService).addToBlacklist(token, expiryDate);
     }
 
     @Test
-    void testLogoutWithRefreshToken() {
+    void logout_WithRefreshToken_ShouldAddTokenToBlacklistAndDeleteRefreshToken() {
         String token = "jwt.token.here";
         String refreshTokenStr = "refresh-token";
         Date expiryDate = new Date(System.currentTimeMillis() + 3600000);
@@ -219,20 +214,21 @@ class AuthServiceTest {
 
         authService.logout(token, refreshTokenStr);
 
+        verify(jwtService).extractExpiration(token);
         verify(tokenBlacklistService).addToBlacklist(token, expiryDate);
         verify(refreshTokenService).findByToken(refreshTokenStr);
         verify(refreshTokenService).deleteToken(refreshToken);
     }
 
     @Test
-    void testRefreshToken() {
+    void refreshToken_WithValidToken_ShouldReturnNewAccessToken() {
         TokenRefreshRequest request = TokenRefreshRequest.builder()
                 .refreshToken("refresh-token")
                 .build();
 
         when(refreshTokenService.findByToken(anyString())).thenReturn(Optional.of(refreshToken));
         when(refreshTokenService.verifyExpiration(any(RefreshToken.class))).thenReturn(refreshToken);
-        when(jwtService.generateToken(any())).thenReturn("new-access-token");
+        when(jwtService.generateToken(any(UserDetails.class))).thenReturn("new-access-token");
 
         TokenRefreshResponse response = authService.refreshToken(request);
 
@@ -242,11 +238,11 @@ class AuthServiceTest {
 
         verify(refreshTokenService).findByToken(request.getRefreshToken());
         verify(refreshTokenService).verifyExpiration(refreshToken);
-        verify(jwtService).generateToken(any());
+        verify(jwtService).generateToken(any(UserDetails.class));
     }
 
     @Test
-    void testRefreshToken_InvalidToken() {
+    void refreshToken_WithInvalidToken_ShouldThrowException() {
         TokenRefreshRequest request = TokenRefreshRequest.builder()
                 .refreshToken("invalid-token")
                 .build();
@@ -258,5 +254,6 @@ class AuthServiceTest {
         });
 
         assertTrue(exception.getMessage().contains("Refresh token is not in database!"));
+        verify(refreshTokenService).findByToken(request.getRefreshToken());
     }
 }
