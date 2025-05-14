@@ -29,6 +29,6 @@ cors:
 
 logging:
   level:
-    org.springframework.security: ${LOG_SECURITY_LEVEL}
-    org.hibernate.SQL: ${LOG_SQL_LEVEL}
-    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_SQL_PARAMS_LEVEL}
+    org.springframework.security: ${LOG_SECURITY_LEVEL:INFO}
+    org.hibernate.SQL: ${LOG_SQL_LEVEL:INFO}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_SQL_PARAMS_LEVEL:INFO}
