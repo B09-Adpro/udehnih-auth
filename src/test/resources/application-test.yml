@@ -10,6 +10,12 @@ spring:
     database-platform: org.hibernate.dialect.H2Dialect
     show-sql: true
 
+cors:
+  allowed-origins: http://localhost:3000
+  allowed-methods: GET,POST,PUT,DELETE,OPTIONS
+  allowed-headers: '*'
+  allow-credentials: true
+
 server:
   port: 5000
 
