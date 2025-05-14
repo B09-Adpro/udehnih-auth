@@ -35,9 +35,12 @@ class RefreshTokenServiceTest {
 
     private User user;
     private RefreshToken refreshToken;
+    private final long refreshTokenDurationMs = 604800000; // 7 days
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(refreshTokenService, "refreshTokenDurationMs", refreshTokenDurationMs);
+
         user = new User();
         user.setId(1L);
         user.setEmail("test@example.com");
@@ -46,68 +49,88 @@ class RefreshTokenServiceTest {
         refreshToken.setId(1L);
         refreshToken.setUser(user);
         refreshToken.setToken(UUID.randomUUID().toString());
-        refreshToken.setExpiryDate(Instant.now().plusSeconds(600));
-
-        ReflectionTestUtils.setField(refreshTokenService, "refreshTokenDurationMs", 600000L);
+        refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
     }
 
     @Test
-    void testCreateRefreshToken() {
-        when(userRepository.findById(anyLong())).thenReturn(Optional.of(user));
+    void createRefreshToken_ShouldDeleteOldTokensAndCreateNew() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
         when(refreshTokenRepository.save(any(RefreshToken.class))).thenReturn(refreshToken);
 
-        RefreshToken createdToken = refreshTokenService.createRefreshToken(user.getId());
+        RefreshToken result = refreshTokenService.createRefreshToken(1L);
 
-        assertNotNull(createdToken);
-        assertEquals(user, createdToken.getUser());
-        assertFalse(createdToken.isExpired());
+        assertNotNull(result);
+        assertEquals(user, result.getUser());
+        assertFalse(result.isExpired());
+        assertTrue(result.getExpiryDate().isAfter(Instant.now()));
 
+        verify(userRepository).findById(1L);
+        verify(refreshTokenRepository).deleteByUser(user);
         verify(refreshTokenRepository).save(any(RefreshToken.class));
     }
 
     @Test
-    void testVerifyExpiration_NotExpired() {
-        RefreshToken verifiedToken = refreshTokenService.verifyExpiration(refreshToken);
+    void createRefreshToken_WithInvalidUserId_ShouldThrowException() {
+        when(userRepository.findById(999L)).thenReturn(Optional.empty());
 
-        assertEquals(refreshToken, verifiedToken);
+        Exception exception = assertThrows(RuntimeException.class, () -> {
+            refreshTokenService.createRefreshToken(999L);
+        });
+
+        assertTrue(exception.getMessage().contains("User not found"));
+        verify(userRepository).findById(999L);
+        verify(refreshTokenRepository, never()).deleteByUser(any());
+        verify(refreshTokenRepository, never()).save(any());
     }
 
     @Test
-    void testVerifyExpiration_Expired() {
-        refreshToken.setExpiryDate(Instant.now().minusSeconds(60));
+    void findByToken_ShouldReturnToken() {
+        String tokenValue = "valid-token";
+        when(refreshTokenRepository.findByToken(tokenValue)).thenReturn(Optional.of(refreshToken));
 
-        assertThrows(TokenRefreshException.class, () -> {
+        Optional<RefreshToken> result = refreshTokenService.findByToken(tokenValue);
+
+        assertTrue(result.isPresent());
+        assertEquals(refreshToken, result.get());
+        verify(refreshTokenRepository).findByToken(tokenValue);
+    }
+
+    @Test
+    void verifyExpiration_WithValidToken_ShouldReturnToken() {
+        refreshToken.setExpiryDate(Instant.now().plusSeconds(3600));
+
+        RefreshToken result = refreshTokenService.verifyExpiration(refreshToken);
+
+        assertEquals(refreshToken, result);
+        verify(refreshTokenRepository, never()).delete(any());
+    }
+
+    @Test
+    void verifyExpiration_WithExpiredToken_ShouldDeleteAndThrowException() {
+        refreshToken.setExpiryDate(Instant.now().minusSeconds(3600));
+
+        Exception exception = assertThrows(TokenRefreshException.class, () -> {
             refreshTokenService.verifyExpiration(refreshToken);
         });
 
+        assertTrue(exception.getMessage().contains("Refresh token was expired"));
         verify(refreshTokenRepository).delete(refreshToken);
     }
 
     @Test
-    void testFindByToken_TokenExists() {
-        when(refreshTokenRepository.findByToken(anyString())).thenReturn(Optional.of(refreshToken));
+    void deleteByUserId_ShouldDeleteTokens() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(user));
 
-        Optional<RefreshToken> found = refreshTokenService.findByToken(refreshToken.getToken());
+        refreshTokenService.deleteByUserId(1L);
 
-        assertTrue(found.isPresent());
-        assertEquals(refreshToken.getToken(), found.get().getToken());
-    }
-
-    @Test
-    void testFindByToken_TokenDoesNotExist() {
-        when(refreshTokenRepository.findByToken(anyString())).thenReturn(Optional.empty());
-
-        Optional<RefreshToken> found = refreshTokenService.findByToken("non-existent-token");
-
-        assertFalse(found.isPresent());
-    }
-
-    @Test
-    void testDeleteByUserId() {
-        when(userRepository.findById(anyLong())).thenReturn(Optional.of(user));
-
-        refreshTokenService.deleteByUserId(user.getId());
-
+        verify(userRepository).findById(1L);
         verify(refreshTokenRepository).deleteByUser(user);
+    }
+
+    @Test
+    void deleteToken_ShouldInvokeRepository() {
+        refreshTokenService.deleteToken(refreshToken);
+
+        verify(refreshTokenRepository).delete(refreshToken);
     }
 }
