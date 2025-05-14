@@ -39,12 +39,11 @@ public class RefreshTokenServiceImpl implements RefreshTokenService {
                 .orElseThrow(() -> new RuntimeException("User not found with id: " + userId));
 
         refreshTokenRepository.deleteByUser(user);
-
+        refreshTokenRepository.flush();
         RefreshToken refreshToken = new RefreshToken();
         refreshToken.setUser(user);
         refreshToken.setExpiryDate(Instant.now().plusMillis(refreshTokenDurationMs));
         refreshToken.setToken(UUID.randomUUID().toString());
-
         return refreshTokenRepository.save(refreshToken);
     }
 
