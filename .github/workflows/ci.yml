@@ -69,5 +69,9 @@ jobs:
               -e JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }} \
               -e JWT_EXPIRATION=${{ secrets.JWT_EXPIRATION }} \
               -e JWT_REFRESH_EXPIRATION=${{ secrets.JWT_REFRESH_EXPIRATION }} \
+              -e ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }} \
+              -e ALLOWED_METHODS=${{ secrets.ALLOWED_METHODS }} \
+              -e ALLOWED_HEADERS=${{ secrets.ALLOWED_HEADERS }} \
+              -e ALLOWED_CREDENTIALS=${{ secrets.ALLOWED_CREDENTIALS }} \
               -e SERVER_PORT=8080 \
               ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO_NAME }}:latest
