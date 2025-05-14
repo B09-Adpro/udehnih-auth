@@ -20,9 +20,15 @@ jwt:
   expiration: ${JWT_EXPIRATION}
   refresh-expiration: ${JWT_REFRESH_EXPIRATION}
 
+cors:
+  allowed-origins: ${ALLOWED_ORIGINS}
+  allowed-methods: ${ALLOWED_METHODS}
+  allowed-headers: ${ALLOWED_HEADERS}
+  allow-credentials: ${ALLOWED_CREDENTIALS}
+
 
 logging:
   level:
-    org.springframework.security: ${LOG_SECURITY_LEVEL:INFO}
-    org.hibernate.SQL: ${LOG_SQL_LEVEL:INFO}
-    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_SQL_PARAMS_LEVEL:INFO}
+    org.springframework.security: ${LOG_SECURITY_LEVEL}
+    org.hibernate.SQL: ${LOG_SQL_LEVEL}
+    org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_SQL_PARAMS_LEVEL}
