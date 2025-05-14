@@ -1,10 +1,9 @@
 package id.ac.ui.cs.advprog.udehnihauth.service;
 
-import io.jsonwebtoken.Claims;
-import io.jsonwebtoken.Jwts;
-import io.jsonwebtoken.SignatureAlgorithm;
+import io.jsonwebtoken.*;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.security.core.userdetails.UserDetails;
 
@@ -16,6 +15,7 @@ import java.util.Map;
 import java.util.function.Function;
 import org.springframework.beans.factory.annotation.Value;
 
+@Slf4j
 @Service
 public class JwtService {
 
@@ -80,12 +80,23 @@ public class JwtService {
     }
 
     public boolean isTokenValid(String token, UserDetails userDetails) {
-        final String username = extractUsername(token);
-        return (username.equals(userDetails.getUsername())) && !isTokenExpired(token) &&  !tokenBlacklistService.isBlacklisted(token);
+        try {
+            final String username = extractUsername(token);
+            return (username.equals(userDetails.getUsername())) && !isTokenExpired(token) && !tokenBlacklistService.isBlacklisted(token);
+        } catch (ExpiredJwtException e) {
+            return false;
+        } catch (JwtException | IllegalArgumentException e) {
+            log.info("Invalid JWT token.");
+            return false;
+        }
     }
 
     private boolean isTokenExpired(String token) {
-        return extractExpiration(token).before(new Date());
+        try {
+            return extractExpiration(token).before(new Date());
+        } catch (ExpiredJwtException e) {
+            return true;
+        }
     }
 
     public Date extractExpiration(String token) {
