@@ -61,7 +61,7 @@ public class AuthServiceImpl implements AuthService {
 
         User savedUser = userRepository.save(user);
 
-        String jwtToken = jwtService.generateToken(createUserDetails(savedUser));
+        String jwtToken = jwtService.generateToken(savedUser.getId(), savedUser.getEmail(), createUserDetails(savedUser));
 
         return buildAuthResponse(savedUser, jwtToken);
     }
@@ -78,7 +78,7 @@ public class AuthServiceImpl implements AuthService {
         User user = userRepository.findByEmail(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String jwtToken = jwtService.generateToken(createUserDetails(user));
+        String jwtToken = jwtService.generateToken(user.getId(), user.getEmail(), createUserDetails(user));
 
         return buildAuthResponse(user, jwtToken);
     }
@@ -125,6 +125,7 @@ public class AuthServiceImpl implements AuthService {
         return AuthResponse.builder()
                 .token(token)
                 .refreshToken(refreshToken.getToken())
+                .userId(user.getId())
                 .email(user.getEmail())
                 .name(user.getName())
                 .roles(roles)
@@ -139,7 +140,7 @@ public class AuthServiceImpl implements AuthService {
                 .map(refreshTokenService::verifyExpiration)
                 .map(RefreshToken::getUser)
                 .map(user -> {
-                    String token = jwtService.generateToken(createUserDetails(user));
+                    String token = jwtService.generateToken(user.getId(), user.getEmail(), createUserDetails(user));
 
                     return TokenRefreshResponse.builder()
                             .accessToken(token)
