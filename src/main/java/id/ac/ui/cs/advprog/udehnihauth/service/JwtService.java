@@ -60,8 +60,20 @@ public class JwtService {
         return buildToken(extraClaims, userDetails, jwtExpiration);
     }
 
+    public String generateToken(Long userId, String email, UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("email", email);
+        return buildTokenWithSubject(claims, String.valueOf(userId), userDetails, jwtExpiration);
+    }
+
     public String generateRefreshToken(UserDetails userDetails) {
         return buildToken(new HashMap<>(), userDetails, refreshExpiration);
+    }
+
+    public String generateRefreshToken(Long userId, String email, UserDetails userDetails) {
+        Map<String, Object> claims = new HashMap<>();
+        claims.put("email", email);
+        return buildTokenWithSubject(claims, String.valueOf(userId), userDetails, refreshExpiration);
     }
 
     private String buildToken(
@@ -79,12 +91,26 @@ public class JwtService {
                 .compact();
     }
 
+    private String buildTokenWithSubject(
+            Map<String, Object> extraClaims,
+            String subject,
+            UserDetails userDetails,
+            long expiration
+    ) {
+        return Jwts
+                .builder()
+                .setClaims(extraClaims)
+                .setSubject(subject)
+                .setIssuedAt(new Date(System.currentTimeMillis()))
+                .setExpiration(new Date(System.currentTimeMillis() + expiration))
+                .signWith(getSignInKey(), SignatureAlgorithm.HS256)
+                .compact();
+    }
+
     public boolean isTokenValid(String token, UserDetails userDetails) {
         try {
-            final String username = extractUsername(token);
-            return (username.equals(userDetails.getUsername())) && !isTokenExpired(token) && !tokenBlacklistService.isBlacklisted(token);
-        } catch (ExpiredJwtException e) {
-            return false;
+            return !isTokenExpired(token)
+                    && !tokenBlacklistService.isBlacklisted(token);
         } catch (JwtException | IllegalArgumentException e) {
             log.info("Invalid JWT token.");
             return false;
