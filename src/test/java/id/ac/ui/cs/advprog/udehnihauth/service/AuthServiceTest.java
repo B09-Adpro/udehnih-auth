@@ -21,7 +21,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.Instant;
@@ -102,6 +101,19 @@ class AuthServiceTest {
     }
 
     @Test
+    void register_WithExistingEmail_ShouldThrowException() {
+        when(userRepository.existsByEmail(anyString())).thenReturn(true);
+
+        Exception exception = assertThrows(RuntimeException.class, () -> {
+            authService.register(registerRequest);
+        });
+
+        assertEquals("Email is already in use!", exception.getMessage());
+        verify(userRepository).existsByEmail(registerRequest.getEmail());
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     void register_WithNewUser_ShouldCreateUserAndReturnToken() {
         when(userRepository.existsByEmail(anyString())).thenReturn(false);
         when(roleRepository.findByName(any(RoleType.class))).thenReturn(Optional.of(studentRole));
@@ -117,7 +129,8 @@ class AuthServiceTest {
         savedUser.getRoles().add(studentRole);
 
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-        when(jwtService.generateToken(any(UserDetails.class))).thenReturn(jwtToken);
+
+        doReturn(jwtToken).when(jwtService).generateToken(any(), any(), any());
         when(refreshTokenService.createRefreshToken(anyLong())).thenReturn(refreshToken);
 
         AuthResponse response = authService.register(registerRequest);
@@ -127,28 +140,14 @@ class AuthServiceTest {
         assertEquals("refresh-token", response.getRefreshToken());
         assertEquals(registerRequest.getEmail(), response.getEmail());
         assertEquals(registerRequest.getName(), response.getName());
-
         assertTrue(response.getRoles().contains(RoleType.STUDENT));
 
         verify(userRepository).existsByEmail(registerRequest.getEmail());
         verify(roleRepository).findByName(RoleType.STUDENT);
         verify(passwordEncoder).encode(registerRequest.getPassword());
         verify(userRepository).save(any(User.class));
-        verify(jwtService).generateToken(any(UserDetails.class));
+        verify(jwtService).generateToken(any(), any(), any());
         verify(refreshTokenService).createRefreshToken(anyLong());
-    }
-
-    @Test
-    void register_WithExistingEmail_ShouldThrowException() {
-        when(userRepository.existsByEmail(anyString())).thenReturn(true);
-
-        Exception exception = assertThrows(RuntimeException.class, () -> {
-            authService.register(registerRequest);
-        });
-
-        assertEquals("Email is already in use!", exception.getMessage());
-        verify(userRepository).existsByEmail(registerRequest.getEmail());
-        verify(userRepository, never()).save(any(User.class));
     }
 
     @Test
@@ -156,7 +155,8 @@ class AuthServiceTest {
         Authentication authentication = mock(Authentication.class);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
         when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
-        when(jwtService.generateToken(any(UserDetails.class))).thenReturn(jwtToken);
+
+        doReturn(jwtToken).when(jwtService).generateToken(any(), any(), any());
         when(refreshTokenService.createRefreshToken(anyLong())).thenReturn(refreshToken);
 
         user.getRoles().add(studentRole);
@@ -172,8 +172,30 @@ class AuthServiceTest {
 
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
         verify(userRepository).findByEmail(loginRequest.getEmail());
-        verify(jwtService).generateToken(any(UserDetails.class));
+        verify(jwtService).generateToken(any(), any(), any());
         verify(refreshTokenService).createRefreshToken(anyLong());
+    }
+
+    @Test
+    void refreshToken_WithValidToken_ShouldReturnNewAccessToken() {
+        TokenRefreshRequest request = TokenRefreshRequest.builder()
+                .refreshToken("refresh-token")
+                .build();
+
+        when(refreshTokenService.findByToken(anyString())).thenReturn(Optional.of(refreshToken));
+        when(refreshTokenService.verifyExpiration(any(RefreshToken.class))).thenReturn(refreshToken);
+
+        doReturn("new-access-token").when(jwtService).generateToken(any(), any(), any());
+
+        TokenRefreshResponse response = authService.refreshToken(request);
+
+        assertNotNull(response);
+        assertEquals("new-access-token", response.getAccessToken());
+        assertEquals("refresh-token", response.getRefreshToken());
+
+        verify(refreshTokenService).findByToken(request.getRefreshToken());
+        verify(refreshTokenService).verifyExpiration(refreshToken);
+        verify(jwtService).generateToken(any(), any(), any());
     }
 
     @Test
@@ -218,27 +240,6 @@ class AuthServiceTest {
         verify(tokenBlacklistService).addToBlacklist(token, expiryDate);
         verify(refreshTokenService).findByToken(refreshTokenStr);
         verify(refreshTokenService).deleteToken(refreshToken);
-    }
-
-    @Test
-    void refreshToken_WithValidToken_ShouldReturnNewAccessToken() {
-        TokenRefreshRequest request = TokenRefreshRequest.builder()
-                .refreshToken("refresh-token")
-                .build();
-
-        when(refreshTokenService.findByToken(anyString())).thenReturn(Optional.of(refreshToken));
-        when(refreshTokenService.verifyExpiration(any(RefreshToken.class))).thenReturn(refreshToken);
-        when(jwtService.generateToken(any(UserDetails.class))).thenReturn("new-access-token");
-
-        TokenRefreshResponse response = authService.refreshToken(request);
-
-        assertNotNull(response);
-        assertEquals("new-access-token", response.getAccessToken());
-        assertEquals("refresh-token", response.getRefreshToken());
-
-        verify(refreshTokenService).findByToken(request.getRefreshToken());
-        verify(refreshTokenService).verifyExpiration(refreshToken);
-        verify(jwtService).generateToken(any(UserDetails.class));
     }
 
     @Test
