@@ -34,36 +34,44 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
     ) throws ServletException, IOException {
         final String authHeader = request.getHeader("Authorization");
         final String jwt;
-        final String userEmail;
+        final String userId;
 
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            logger.info("No Bearer token found for request: " + request.getRequestURI());
             filterChain.doFilter(request, response);
             return;
         }
 
         jwt = authHeader.substring(7);
+        logger.info("Processing JWT token for request: " + request.getRequestURI());
 
         if (tokenBlacklistService.isBlacklisted(jwt)) {
+            logger.info("Token is blacklisted, rejecting request");
             filterChain.doFilter(request, response);
             return;
         }
 
         try {
-            userEmail = jwtService.extractUsername(jwt);
+            userId = jwtService.extractUsername(jwt);
+            logger.info("Extracted userId from token: " + userId);
 
-            if (userEmail != null && SecurityContextHolder.getContext().getAuthentication() == null) {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userEmail);
+            if (userId != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(userId);
+                logger.info("Loaded user details for userId: " + userId);
 
                 if (jwtService.isTokenValid(jwt, userDetails)) {
+                    logger.info("Token validation successful");
                     UsernamePasswordAuthenticationToken authToken = new UsernamePasswordAuthenticationToken(
                             userDetails,
-                            null,
+                            jwt,
                             userDetails.getAuthorities()
                     );
                     authToken.setDetails(
                             new WebAuthenticationDetailsSource().buildDetails(request)
                     );
                     SecurityContextHolder.getContext().setAuthentication(authToken);
+                } else {
+                    logger.error("Token validation failed");
                 }
             }
         } catch (Exception e) {
