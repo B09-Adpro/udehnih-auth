@@ -13,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -43,7 +44,7 @@ class UserControllerTest {
 
     @Test
     void getUserInfo_ExistingUser_ReturnsUserInfo() throws Exception {
-        when(userService.getUserInfo(anyString())).thenReturn(userInfoResponse);
+        when(userService.getUserInfo(anyLong())).thenReturn(userInfoResponse);
 
         mockMvc.perform(get("/api/users/{userId}", "1")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -57,7 +58,7 @@ class UserControllerTest {
 
     @Test
     void getUserInfo_NonExistingUser_ReturnsNotFound() throws Exception {
-        when(userService.getUserInfo(anyString())).thenThrow(new UserNotFoundException("User not found with id: 999"));
+        when(userService.getUserInfo(anyLong())).thenThrow(new UserNotFoundException("User not found with id: 999"));
 
         mockMvc.perform(get("/api/users/{userId}", "999")
                         .contentType(MediaType.APPLICATION_JSON)

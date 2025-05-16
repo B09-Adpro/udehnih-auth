@@ -45,7 +45,7 @@ class UserServiceTest {
     void getUserInfo_ExistingUser_ReturnsUserInfo() {
         when(userRepository.findById(anyLong())).thenReturn(Optional.of(user));
 
-        UserInfoResponse response = userService.getUserInfo(userIdStr);
+        UserInfoResponse response = userService.getUserInfo(userId);
 
         assertNotNull(response);
         assertEquals(userIdStr, response.getId());
@@ -58,9 +58,9 @@ class UserServiceTest {
         when(userRepository.findById(anyLong())).thenReturn(Optional.empty());
 
         Exception exception = assertThrows(RuntimeException.class, () -> {
-            userService.getUserInfo(userIdStr);
+            userService.getUserInfo(userId);
         });
 
-        assertEquals("User not found with id: " + userIdStr, exception.getMessage());
+        assertEquals("User not found with id: " + userId, exception.getMessage());
     }
 }
