@@ -13,7 +13,9 @@ import java.util.Objects;
 import java.util.Set;
 
 @Entity
-@Table(name = "users")
+@Table(name = "users", indexes = {
+        @Index(name = "idx_users_email", columnList = "email")
+})
 @Getter
 @Setter
 @Builder
@@ -37,14 +39,32 @@ public class User {
     @Column(nullable = false)
     private LocalDateTime registrationDate;
 
-    @ManyToMany(fetch = FetchType.EAGER)
+    @ManyToMany(fetch = FetchType.LAZY, cascade = {CascadeType.PERSIST, CascadeType.MERGE})
     @JoinTable(
             name = "user_roles",
             joinColumns = @JoinColumn(name = "user_id"),
-            inverseJoinColumns = @JoinColumn(name = "role_id")
+            inverseJoinColumns = @JoinColumn(name = "role_id"),
+            indexes = {
+                    @Index(name = "idx_user_roles_user_id", columnList = "user_id"),
+                    @Index(name = "idx_user_roles_role_id", columnList = "role_id")
+            }
     )
     @Builder.Default
     private Set<Role> roles = new HashSet<>();
+
+    public void addRole(Role role) {
+        this.roles.add(role);
+        role.getUsers().add(this);
+    }
+
+    public void removeRole(Role role) {
+        this.roles.remove(role);
+        role.getUsers().remove(this);
+    }
+
+    public boolean hasRole(RoleType roleType) {
+        return roles.stream().anyMatch(role -> role.getName() == roleType);
+    }
 
     @Override
     public boolean equals(Object o) {
