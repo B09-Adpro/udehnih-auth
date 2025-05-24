@@ -67,7 +67,8 @@ class UserDetailsServiceImplTest {
 
     @Test
     void loadUserByUsername_WithExistingUser_ShouldReturnUserDetails() {
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        // Mock the method that's actually being called in your UserDetailsServiceImpl
+        when(userRepository.findByEmailForAuthentication("test@example.com")).thenReturn(Optional.of(user));
 
         UserDetails userDetails = userDetailsService.loadUserByUsername("test@example.com");
 
@@ -85,19 +86,19 @@ class UserDetailsServiceImplTest {
         assertTrue(authorityNames.contains("ROLE_STUDENT"));
         assertTrue(authorityNames.contains("ROLE_TUTOR"));
 
-        verify(userRepository).findByEmail("test@example.com");
+        verify(userRepository).findByEmailForAuthentication("test@example.com");
     }
 
     @Test
     void loadUserByUsername_WithNonExistentUser_ShouldThrowException() {
-        when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findByEmailForAuthentication(anyString())).thenReturn(Optional.empty());
 
         Exception exception = assertThrows(UsernameNotFoundException.class, () -> {
             userDetailsService.loadUserByUsername("nonexistent@example.com");
         });
 
         assertEquals("User not found with email: nonexistent@example.com", exception.getMessage());
-        verify(userRepository).findByEmail("nonexistent@example.com");
+        verify(userRepository).findByEmailForAuthentication("nonexistent@example.com");
     }
 
     @Test
@@ -110,7 +111,7 @@ class UserDetailsServiceImplTest {
         userWithNoRoles.setRegistrationDate(LocalDateTime.now());
         userWithNoRoles.setRoles(new HashSet<>());
 
-        when(userRepository.findByEmail("noroles@example.com")).thenReturn(Optional.of(userWithNoRoles));
+        when(userRepository.findByEmailForAuthentication("noroles@example.com")).thenReturn(Optional.of(userWithNoRoles));
 
         UserDetails userDetails = userDetailsService.loadUserByUsername("noroles@example.com");
 
@@ -121,7 +122,7 @@ class UserDetailsServiceImplTest {
         Collection<? extends GrantedAuthority> authorities = userDetails.getAuthorities();
         assertTrue(authorities.isEmpty());
 
-        verify(userRepository).findByEmail("noroles@example.com");
+        verify(userRepository).findByEmailForAuthentication("noroles@example.com");
     }
 
     @Test
@@ -142,7 +143,7 @@ class UserDetailsServiceImplTest {
         staffUser.getRoles().add(staffRole);
         staffRole.getUsers().add(staffUser);
 
-        when(userRepository.findByEmail("staff@example.com")).thenReturn(Optional.of(staffUser));
+        when(userRepository.findByEmailForAuthentication("staff@example.com")).thenReturn(Optional.of(staffUser));
 
         UserDetails userDetails = userDetailsService.loadUserByUsername("staff@example.com");
 
@@ -156,12 +157,12 @@ class UserDetailsServiceImplTest {
 
         assertTrue(hasStaffRole);
 
-        verify(userRepository).findByEmail("staff@example.com");
+        verify(userRepository).findByEmailForAuthentication("staff@example.com");
     }
 
     @Test
     void loadUserByUsername_ShouldConvertRolesToAuthorities() {
-        when(userRepository.findByEmail("test@example.com")).thenReturn(Optional.of(user));
+        when(userRepository.findByEmailForAuthentication("test@example.com")).thenReturn(Optional.of(user));
 
         UserDetails userDetails = userDetailsService.loadUserByUsername("test@example.com");
 
@@ -177,5 +178,30 @@ class UserDetailsServiceImplTest {
         );
 
         assertEquals(expectedAuthorities, actualAuthorities);
+    }
+
+    @Test
+    void loadUserByUsername_WithUserId_ShouldReturnUserDetails() {
+        when(userRepository.findByIdWithRoles(1L)).thenReturn(Optional.of(user));
+
+        UserDetails userDetails = userDetailsService.loadUserByUsername("1");
+
+        assertNotNull(userDetails);
+        assertEquals("test@example.com", userDetails.getUsername());
+        assertEquals("encoded_password", userDetails.getPassword());
+
+        verify(userRepository).findByIdWithRoles(1L);
+    }
+
+    @Test
+    void loadUserByUsername_WithInvalidUserId_ShouldThrowException() {
+        when(userRepository.findByIdWithRoles(999L)).thenReturn(Optional.empty());
+
+        Exception exception = assertThrows(UsernameNotFoundException.class, () -> {
+            userDetailsService.loadUserByUsername("999");
+        });
+
+        assertEquals("User not found with id: 999", exception.getMessage());
+        verify(userRepository).findByIdWithRoles(999L);
     }
 }
