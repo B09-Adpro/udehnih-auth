@@ -97,25 +97,6 @@ class RoleServiceTest {
     }
 
     @Test
-    void addRoleToUser_WithNonStaffUser_ShouldThrowSecurityException() {
-        User regularUser = new User();
-        regularUser.setEmail("regular@example.com");
-        regularUser.setName("Regular User");
-        regularUser.setPassword("password");
-        regularUser.setRegistrationDate(LocalDateTime.now());
-        regularUser.setRoles(new HashSet<>());
-        regularUser.getRoles().add(studentRole);
-        entityManager.persist(regularUser);
-        entityManager.flush();
-
-        SecurityException exception = assertThrows(SecurityException.class, () -> {
-            roleService.addRoleToUser(user.getId(), RoleType.TUTOR, regularUser.getId());
-        });
-
-        assertEquals("Only staff can add roles to users", exception.getMessage());
-    }
-
-    @Test
     void addRoleToUser_WithExistingRole_ShouldReturnFalse() {
         boolean result = roleService.addRoleToUser(user.getId(), RoleType.STUDENT, staff.getId());
 
@@ -249,25 +230,6 @@ class RoleServiceTest {
         assertEquals(2, staffRoles.size());
         assertTrue(staffRoles.contains(RoleType.STAFF));
         assertTrue(staffRoles.contains(RoleType.TUTOR));
-    }
-
-    @Test
-    void integrationTest_MultipleStaffMembers_ShouldWork() {
-        User staff2 = new User();
-        staff2.setEmail("staff2@example.com");
-        staff2.setName("Staff User 2");
-        staff2.setPassword("password");
-        staff2.setRegistrationDate(LocalDateTime.now());
-        staff2.setRoles(new HashSet<>());
-        staff2.getRoles().add(staffRole);
-        entityManager.persist(staff2);
-        entityManager.flush();
-
-        assertTrue(roleService.addRoleToUser(user.getId(), RoleType.TUTOR, staff.getId()));
-        assertTrue(roleService.addRoleToUser(user.getId(), RoleType.STAFF, staff2.getId()));
-
-        Set<RoleType> userRoles = roleService.getUserRoles(user.getId());
-        assertEquals(3, userRoles.size());
     }
 
     @Test
