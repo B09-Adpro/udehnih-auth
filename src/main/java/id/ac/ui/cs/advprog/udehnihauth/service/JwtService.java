@@ -23,6 +23,8 @@ import java.util.function.Function;
 @RequiredArgsConstructor
 public class JwtService {
 
+    private static final String EMAIL_CLAIM = "email";
+
     @Value("${jwt.secret-key}")
     private String secretKey;
 
@@ -43,7 +45,7 @@ public class JwtService {
     }
 
     public String extractUsername(String token) {
-        return extractClaim(token, claims -> claims.get("email", String.class));
+        return extractClaim(token, claims -> claims.get(EMAIL_CLAIM, String.class));
     }
 
     public Long extractUserId(String token) {
@@ -73,7 +75,7 @@ public class JwtService {
 
     public String generateToken(Long userId, String email, UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("email", email);
+        claims.put(EMAIL_CLAIM, email);
 
         String[] authorities = userDetails.getAuthorities().stream()
                 .map(authority -> authority.getAuthority())
@@ -91,7 +93,7 @@ public class JwtService {
 
     public String generateRefreshToken(Long userId, String email, UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
-        claims.put("email", email);
+        claims.put(EMAIL_CLAIM, email);
         return buildToken(claims, String.valueOf(userId), refreshExpiration);
     }
 
