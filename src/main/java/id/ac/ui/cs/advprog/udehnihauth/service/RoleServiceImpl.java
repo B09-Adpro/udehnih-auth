@@ -6,7 +6,6 @@ import id.ac.ui.cs.advprog.udehnihauth.model.RoleType;
 import id.ac.ui.cs.advprog.udehnihauth.model.User;
 import id.ac.ui.cs.advprog.udehnihauth.repository.RoleRepository;
 import id.ac.ui.cs.advprog.udehnihauth.repository.UserRepository;
-import id.ac.ui.cs.advprog.udehnihauth.util.UserRoleManager;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -27,7 +26,7 @@ public class RoleServiceImpl implements RoleService {
     @Transactional
     public boolean addRoleToUser(Long userId, RoleType roleType, Long staffId) {
         User staff = getUserById(staffId);
-        if (!UserRoleManager.hasRole(staff, RoleType.STAFF)) {
+        if (!staff.hasRole(RoleType.STAFF)) {
             log.warn("User {} attempted to add role but is not staff", staffId);
             throw new SecurityException("Only staff can add roles to users");
         }
@@ -36,17 +35,15 @@ public class RoleServiceImpl implements RoleService {
             User user = getUserById(userId);
             Role role = getRoleByType(roleType);
 
-            if (UserRoleManager.hasRole(user, roleType)) {
+            if (user.hasRole(roleType)) {
                 log.info("User {} already has role {}", userId, roleType);
                 return false;
             }
 
-            boolean added = UserRoleManager.addRoleToUser(user, role);
-            if (added) {
-                userRepository.save(user);
-                log.info("Role {} added to user {} by staff {}", roleType, userId, staffId);
-            }
-            return added;
+            user.addRole(role);
+            userRepository.save(user);
+            log.info("Role {} added to user {} by staff {}", roleType, userId, staffId);
+            return true;
         } catch (Exception e) {
             log.error("Error adding role {} to user {}: {}", roleType, userId, e.getMessage());
             return false;
@@ -57,7 +54,7 @@ public class RoleServiceImpl implements RoleService {
     public boolean userHasRole(Long userId, RoleType roleType) {
         try {
             User user = getUserById(userId);
-            return UserRoleManager.hasRole(user, roleType);
+            return user.hasRole(roleType);
         } catch (Exception e) {
             log.error("Error checking role {} for user {}: {}", roleType, userId, e.getMessage());
             return false;
@@ -84,12 +81,15 @@ public class RoleServiceImpl implements RoleService {
             User user = getUserById(userId);
             Role role = getRoleByType(roleType);
 
-            boolean removed = UserRoleManager.removeRoleFromUser(user, role);
-            if (removed) {
-                userRepository.save(user);
-                log.info("Role {} removed from user {}", roleType, userId);
+            if (!user.hasRole(roleType)) {
+                log.info("User {} doesn't have role {}", userId, roleType);
+                return false;
             }
-            return removed;
+
+            user.removeRole(role);
+            userRepository.save(user);
+            log.info("Role {} removed from user {}", roleType, userId);
+            return true;
         } catch (Exception e) {
             log.error("Error removing role {} from user {}: {}", roleType, userId, e.getMessage());
             return false;
