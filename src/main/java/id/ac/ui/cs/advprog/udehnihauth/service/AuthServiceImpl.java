@@ -10,10 +10,10 @@ import id.ac.ui.cs.advprog.udehnihauth.model.RefreshToken;
 import id.ac.ui.cs.advprog.udehnihauth.model.Role;
 import id.ac.ui.cs.advprog.udehnihauth.model.RoleType;
 import id.ac.ui.cs.advprog.udehnihauth.model.User;
-import id.ac.ui.cs.advprog.udehnihauth.util.UserRoleManager;
 import id.ac.ui.cs.advprog.udehnihauth.repository.RoleRepository;
 import id.ac.ui.cs.advprog.udehnihauth.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
@@ -22,13 +22,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Date;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.stream.Collectors;
-import java.util.Date;
 
 @Service
 @RequiredArgsConstructor
+@Transactional
+@Slf4j
 public class AuthServiceImpl implements AuthService {
 
     private final UserRepository userRepository;
@@ -40,11 +42,16 @@ public class AuthServiceImpl implements AuthService {
     private final RefreshTokenService refreshTokenService;
 
     @Override
-    @Transactional
     public AuthResponse register(RegisterRequest request) {
+        log.info("Starting user registration for email: {}", request.getEmail());
+        long startTime = System.currentTimeMillis();
+
         if (userRepository.existsByEmail(request.getEmail())) {
             throw new RuntimeException("Email is already in use!");
         }
+
+        Role studentRole = roleRepository.findByName(RoleType.STUDENT)
+                .orElseThrow(() -> new RuntimeException("Error: Role STUDENT not found."));
 
         User user = User.builder()
                 .email(request.getEmail())
@@ -54,20 +61,28 @@ public class AuthServiceImpl implements AuthService {
                 .roles(new HashSet<>())
                 .build();
 
-        Role studentRole = roleRepository.findByName(RoleType.STUDENT)
-                .orElseThrow(() -> new RuntimeException("Error: Role STUDENT not found."));
-
-        UserRoleManager.addRoleToUser(user, studentRole);
+        user.addRole(studentRole);
 
         User savedUser = userRepository.save(user);
 
-        String jwtToken = jwtService.generateToken(savedUser.getId(), savedUser.getEmail(), createUserDetails(savedUser));
+        String jwtToken = jwtService.generateToken(
+                savedUser.getId(),
+                savedUser.getEmail(),
+                createUserDetails(savedUser)
+        );
 
-        return buildAuthResponse(savedUser, jwtToken);
+        AuthResponse response = buildAuthResponse(savedUser, jwtToken);
+
+        log.info("User registration completed in {}ms for email: {}",
+                System.currentTimeMillis() - startTime, request.getEmail());
+
+        return response;
     }
 
     @Override
     public AuthResponse login(LoginRequest request) {
+        log.info("Starting user login for email: {}", request.getEmail());
+
         authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(
                         request.getEmail(),
@@ -75,10 +90,14 @@ public class AuthServiceImpl implements AuthService {
                 )
         );
 
-        User user = userRepository.findByEmail(request.getEmail())
+        User user = userRepository.findByEmailForAuthentication(request.getEmail())
                 .orElseThrow(() -> new RuntimeException("User not found"));
 
-        String jwtToken = jwtService.generateToken(user.getId(), user.getEmail(), createUserDetails(user));
+        String jwtToken = jwtService.generateToken(
+                user.getId(),
+                user.getEmail(),
+                createUserDetails(user)
+        );
 
         return buildAuthResponse(user, jwtToken);
     }
@@ -91,14 +110,44 @@ public class AuthServiceImpl implements AuthService {
     @Override
     public void logout(String token, String refreshToken) {
         if (token != null) {
-            Date expiry = jwtService.extractExpiration(token);
-            tokenBlacklistService.addToBlacklist(token, expiry);
+            try {
+                Date expiry = jwtService.extractExpiration(token);
+                tokenBlacklistService.addToBlacklist(token, expiry);
+            } catch (Exception e) {
+                log.warn("Failed to extract expiration from token during logout", e);
+            }
         }
 
         if (refreshToken != null) {
             refreshTokenService.findByToken(refreshToken)
                     .ifPresent(refreshTokenService::deleteToken);
         }
+    }
+
+    @Override
+    public TokenRefreshResponse refreshToken(TokenRefreshRequest request) {
+        String requestRefreshToken = request.getRefreshToken();
+
+        return refreshTokenService.findByToken(requestRefreshToken)
+                .map(refreshTokenService::verifyExpiration)
+                .map(RefreshToken::getUser)
+                .map(user -> {
+                    User userWithRoles = userRepository.findByIdWithRoles(user.getId())
+                            .orElseThrow(() -> new RuntimeException("User not found"));
+
+                    String token = jwtService.generateToken(
+                            userWithRoles.getId(),
+                            userWithRoles.getEmail(),
+                            createUserDetails(userWithRoles)
+                    );
+
+                    return TokenRefreshResponse.builder()
+                            .accessToken(token)
+                            .refreshToken(requestRefreshToken)
+                            .build();
+                })
+                .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
+                        "Refresh token is not in database!"));
     }
 
     private UserDetails createUserDetails(User user) {
@@ -130,24 +179,5 @@ public class AuthServiceImpl implements AuthService {
                 .name(user.getName())
                 .roles(roles)
                 .build();
-    }
-
-    @Override
-    public TokenRefreshResponse refreshToken(TokenRefreshRequest request) {
-        String requestRefreshToken = request.getRefreshToken();
-
-        return refreshTokenService.findByToken(requestRefreshToken)
-                .map(refreshTokenService::verifyExpiration)
-                .map(RefreshToken::getUser)
-                .map(user -> {
-                    String token = jwtService.generateToken(user.getId(), user.getEmail(), createUserDetails(user));
-
-                    return TokenRefreshResponse.builder()
-                            .accessToken(token)
-                            .refreshToken(requestRefreshToken)
-                            .build();
-                })
-                .orElseThrow(() -> new TokenRefreshException(requestRefreshToken,
-                        "Refresh token is not in database!"));
     }
 }
