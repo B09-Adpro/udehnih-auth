@@ -119,17 +119,17 @@ class AuthServiceTest {
         when(roleRepository.findByName(any(RoleType.class))).thenReturn(Optional.of(studentRole));
         when(passwordEncoder.encode(anyString())).thenReturn("encodedPassword");
 
-        User savedUser = new User();
-        savedUser.setId(1L);
-        savedUser.setEmail(registerRequest.getEmail());
-        savedUser.setName(registerRequest.getName());
-        savedUser.setPassword("encodedPassword");
-        savedUser.setRegistrationDate(LocalDateTime.now());
-        savedUser.setRoles(new HashSet<>());
-        savedUser.getRoles().add(studentRole);
+        User savedUser = User.builder()
+                .id(1L)
+                .email(registerRequest.getEmail())
+                .name(registerRequest.getName())
+                .password("encodedPassword")
+                .registrationDate(LocalDateTime.now())
+                .roles(new HashSet<>())
+                .build();
+        savedUser.addRole(studentRole);
 
         when(userRepository.save(any(User.class))).thenReturn(savedUser);
-
         doReturn(jwtToken).when(jwtService).generateToken(any(), any(), any());
         when(refreshTokenService.createRefreshToken(anyLong())).thenReturn(refreshToken);
 
@@ -154,12 +154,13 @@ class AuthServiceTest {
     void login_WithValidCredentials_ShouldReturnToken() {
         Authentication authentication = mock(Authentication.class);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
-        when(userRepository.findByEmail(anyString())).thenReturn(Optional.of(user));
+
+        when(userRepository.findByEmailForAuthentication(anyString())).thenReturn(Optional.of(user));
 
         doReturn(jwtToken).when(jwtService).generateToken(any(), any(), any());
         when(refreshTokenService.createRefreshToken(anyLong())).thenReturn(refreshToken);
 
-        user.getRoles().add(studentRole);
+        user.addRole(studentRole);
 
         AuthResponse response = authService.login(loginRequest);
 
@@ -171,7 +172,7 @@ class AuthServiceTest {
         assertTrue(response.getRoles().contains(RoleType.STUDENT));
 
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
-        verify(userRepository).findByEmail(loginRequest.getEmail());
+        verify(userRepository).findByEmailForAuthentication(loginRequest.getEmail());
         verify(jwtService).generateToken(any(), any(), any());
         verify(refreshTokenService).createRefreshToken(anyLong());
     }
@@ -185,6 +186,7 @@ class AuthServiceTest {
         when(refreshTokenService.findByToken(anyString())).thenReturn(Optional.of(refreshToken));
         when(refreshTokenService.verifyExpiration(any(RefreshToken.class))).thenReturn(refreshToken);
 
+        when(userRepository.findByIdWithRoles(anyLong())).thenReturn(Optional.of(user));
         doReturn("new-access-token").when(jwtService).generateToken(any(), any(), any());
 
         TokenRefreshResponse response = authService.refreshToken(request);
@@ -195,6 +197,7 @@ class AuthServiceTest {
 
         verify(refreshTokenService).findByToken(request.getRefreshToken());
         verify(refreshTokenService).verifyExpiration(refreshToken);
+        verify(userRepository).findByIdWithRoles(anyLong());
         verify(jwtService).generateToken(any(), any(), any());
     }
 
@@ -202,7 +205,7 @@ class AuthServiceTest {
     void login_WithNonExistentUser_ShouldThrowException() {
         Authentication authentication = mock(Authentication.class);
         when(authenticationManager.authenticate(any(UsernamePasswordAuthenticationToken.class))).thenReturn(authentication);
-        when(userRepository.findByEmail(anyString())).thenReturn(Optional.empty());
+        when(userRepository.findByEmailForAuthentication(anyString())).thenReturn(Optional.empty());
 
         Exception exception = assertThrows(RuntimeException.class, () -> {
             authService.login(loginRequest);
@@ -210,7 +213,7 @@ class AuthServiceTest {
 
         assertEquals("User not found", exception.getMessage());
         verify(authenticationManager).authenticate(any(UsernamePasswordAuthenticationToken.class));
-        verify(userRepository).findByEmail(loginRequest.getEmail());
+        verify(userRepository).findByEmailForAuthentication(loginRequest.getEmail());
     }
 
     @Test
@@ -256,5 +259,56 @@ class AuthServiceTest {
 
         assertTrue(exception.getMessage().contains("Refresh token is not in database!"));
         verify(refreshTokenService).findByToken(request.getRefreshToken());
+    }
+
+    @Test
+    void logout_WithExceptionInTokenExtraction_ShouldContinueWithRefreshToken() {
+        String token = "jwt.token.here";
+        String refreshTokenStr = "refresh-token";
+
+        when(jwtService.extractExpiration(token)).thenThrow(new RuntimeException("Token extraction failed"));
+        when(refreshTokenService.findByToken(refreshTokenStr)).thenReturn(Optional.of(refreshToken));
+
+        authService.logout(token, refreshTokenStr);
+
+        verify(jwtService).extractExpiration(token);
+        verify(tokenBlacklistService, never()).addToBlacklist(any(), any());
+        verify(refreshTokenService).findByToken(refreshTokenStr);
+        verify(refreshTokenService).deleteToken(refreshToken);
+    }
+
+    @Test
+    void register_WithRoleNotFound_ShouldThrowException() {
+        when(userRepository.existsByEmail(anyString())).thenReturn(false);
+        when(roleRepository.findByName(any(RoleType.class))).thenReturn(Optional.empty());
+
+        Exception exception = assertThrows(RuntimeException.class, () -> {
+            authService.register(registerRequest);
+        });
+
+        assertEquals("Error: Role STUDENT not found.", exception.getMessage());
+        verify(userRepository).existsByEmail(registerRequest.getEmail());
+        verify(roleRepository).findByName(RoleType.STUDENT);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void refreshToken_WithUserNotFoundForRefresh_ShouldThrowException() {
+        TokenRefreshRequest request = TokenRefreshRequest.builder()
+                .refreshToken("refresh-token")
+                .build();
+
+        when(refreshTokenService.findByToken(anyString())).thenReturn(Optional.of(refreshToken));
+        when(refreshTokenService.verifyExpiration(any(RefreshToken.class))).thenReturn(refreshToken);
+        when(userRepository.findByIdWithRoles(anyLong())).thenReturn(Optional.empty());
+
+        Exception exception = assertThrows(RuntimeException.class, () -> {
+            authService.refreshToken(request);
+        });
+
+        assertEquals("User not found", exception.getMessage());
+        verify(refreshTokenService).findByToken(request.getRefreshToken());
+        verify(refreshTokenService).verifyExpiration(refreshToken);
+        verify(userRepository).findByIdWithRoles(anyLong());
     }
 }
