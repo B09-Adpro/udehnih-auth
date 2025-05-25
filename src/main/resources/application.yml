@@ -32,3 +32,15 @@ logging:
     org.springframework.security: ${LOG_SECURITY_LEVEL:INFO}
     org.hibernate.SQL: ${LOG_SQL_LEVEL:INFO}
     org.hibernate.type.descriptor.sql.BasicBinder: ${LOG_SQL_PARAMS_LEVEL:INFO}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+    enabled-by-default: true
+  endpoint:
+    prometheus:
+      enabled: true
+    metrics:
+      enabled: true

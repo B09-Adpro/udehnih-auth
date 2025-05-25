@@ -47,7 +47,7 @@ jobs:
           push: true
           tags: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO_NAME }}:latest
 
-      - name: Releasing New Version
+      - name: Deploy Application and Monitoring Stack
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.SSH_HOST }}
@@ -60,23 +60,120 @@ jobs:
             
             docker pull ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO_NAME }}:latest
             
-            docker stop web_server || true
-            docker rm web_server || true
+            mkdir -p /opt/udehnih-auth
+            cd /opt/udehnih-auth
             
-            docker run -d \
-              --name=web_server \
-              -p 8080:8080 \
-              -e DB_HOST=${{ secrets.DB_HOST }} \
-              -e DB_PORT=${{ secrets.DB_PORT }} \
-              -e DB_NAME=${{ secrets.DB_NAME }} \
-              -e DB_USERNAME=${{ secrets.DB_USERNAME }} \
-              -e DB_PASSWORD=${{ secrets.DB_PASSWORD }} \
-              -e JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }} \
-              -e JWT_EXPIRATION=${{ secrets.JWT_EXPIRATION }} \
-              -e JWT_REFRESH_EXPIRATION=${{ secrets.JWT_REFRESH_EXPIRATION }} \
-              -e ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }} \
-              -e ALLOWED_METHODS=${{ secrets.ALLOWED_METHODS }} \
-              -e ALLOWED_HEADERS=${{ secrets.ALLOWED_HEADERS }} \
-              -e ALLOWED_CREDENTIALS=${{ secrets.ALLOWED_CREDENTIALS }} \
-              -e SERVER_PORT=8080 \
-              ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO_NAME }}:latest
+            cat > prometheus.yml << 'EOF'
+            global:
+              scrape_interval: 15s
+
+            scrape_configs:
+              - job_name: 'udehnih-auth'
+                metrics_path: '/actuator/prometheus'
+                static_configs:
+                  - targets: ['udehnih-auth:8080']
+
+              - job_name: 'prometheus'
+                static_configs:
+                  - targets: ['localhost:9090']
+            EOF
+
+            cat > docker-compose.yml << 'EOF'
+            services:
+              udehnih-auth:
+                image: ${{ secrets.DOCKER_HUB_USERNAME }}/${{ secrets.DOCKER_HUB_REPO_NAME }}:latest
+                ports:
+                  - "8080:8080"
+                environment:
+                  - DB_HOST=${{ secrets.DB_HOST }}
+                  - DB_PORT=${{ secrets.DB_PORT }}
+                  - DB_NAME=${{ secrets.DB_NAME }}
+                  - DB_USERNAME=${{ secrets.DB_USERNAME }}
+                  - DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+                  - JWT_SECRET_KEY=${{ secrets.JWT_SECRET_KEY }}
+                  - JWT_EXPIRATION=${{ secrets.JWT_EXPIRATION }}
+                  - JWT_REFRESH_EXPIRATION=${{ secrets.JWT_REFRESH_EXPIRATION }}
+                  - ALLOWED_ORIGINS=${{ secrets.ALLOWED_ORIGINS }}
+                  - ALLOWED_METHODS=${{ secrets.ALLOWED_METHODS }}
+                  - ALLOWED_HEADERS=${{ secrets.ALLOWED_HEADERS }}
+                  - ALLOWED_CREDENTIALS=${{ secrets.ALLOWED_CREDENTIALS }}
+                  - SERVER_PORT=8080
+                depends_on:
+                  - postgres
+                networks:
+                  - monitoring
+                restart: unless-stopped
+
+              postgres:
+                image: postgres:15-alpine
+                environment:
+                  POSTGRES_DB: ${{ secrets.DB_NAME }}
+                  POSTGRES_USER: ${{ secrets.DB_USERNAME }}
+                  POSTGRES_PASSWORD: ${{ secrets.DB_PASSWORD }}
+                ports:
+                  - "5432:5432"
+                volumes:
+                  - postgres_data:/var/lib/postgresql/data
+                networks:
+                  - monitoring
+                restart: unless-stopped
+
+              prometheus:
+                image: prom/prometheus:latest
+                ports:
+                  - "9090:9090"
+                volumes:
+                  - ./prometheus.yml:/etc/prometheus/prometheus.yml
+                  - prometheus_data:/prometheus
+                command:
+                  - '--config.file=/etc/prometheus/prometheus.yml'
+                  - '--storage.tsdb.path=/prometheus'
+                  - '--web.console.libraries=/etc/prometheus/console_libraries'
+                  - '--web.console.templates=/etc/prometheus/consoles'
+                  - '--storage.tsdb.retention.time=200h'
+                  - '--web.enable-lifecycle'
+                networks:
+                  - monitoring
+                restart: unless-stopped
+
+              grafana:
+                image: grafana/grafana:latest
+                ports:
+                  - "3001:3000"
+                environment:
+                  - GF_SECURITY_ADMIN_USER=admin
+                  - GF_SECURITY_ADMIN_PASSWORD=${{ secrets.GRAFANA_ADMIN_PASSWORD }}
+                  - GF_USERS_ALLOW_SIGN_UP=false
+                volumes:
+                  - grafana_data:/var/lib/grafana
+                networks:
+                  - monitoring
+                restart: unless-stopped
+
+            networks:
+              monitoring:
+                driver: bridge
+
+            volumes:
+              postgres_data:
+              prometheus_data:
+              grafana_data:
+            EOF
+ 
+            docker-compose down || true
+    
+            docker-compose up -d
+
+            echo "Waiting for services to start..."
+            sleep 30
+
+            echo "Checking service health..."
+            curl -f http://localhost:8080/health || echo "App health check failed"
+            curl -f http://localhost:9090/-/ready || echo "Prometheus health check failed"
+            curl -f http://localhost:3001/api/health || echo "Grafana health check failed"
+            
+            echo "Deployment completed!"
+            echo "Services available at:"
+            echo "- Application: http://${{ secrets.SSH_HOST }}:8080"
+            echo "- Prometheus: http://${{ secrets.SSH_HOST }}:9090"
+            echo "- Grafana: http://${{ secrets.SSH_HOST }}:3001"

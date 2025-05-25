@@ -1,23 +1,27 @@
-name: Java CI/CD with SonarCloud Analysis
+name: Java CI/CD with SonarCloud Analysis and Monitoring
 on:
   push:
     branches: [ staging ]
   pull_request:
     branches: [ staging ]
+
 jobs:
-  build:
+  build-test-and-analyze:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
       - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           java-version: '21'
           distribution: 'temurin'
+
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
+
       - name: Build with Gradle
         run: ./gradlew build
         env:
@@ -25,18 +29,41 @@ jobs:
           ALLOWED_METHODS: ${{ secrets.ALLOWED_METHODS }}
           ALLOWED_HEADERS: ${{ secrets.ALLOWED_HEADERS }}
           ALLOWED_CREDENTIALS: ${{ secrets.ALLOWED_CREDENTIALS }}
+
       - name: Run tests
         run: ./gradlew test
+
       - name: Generate coverage report
         run: ./gradlew jacocoTestReport
+
       - name: SonarCloud Scan
         uses: SonarSource/sonarqube-scan-action@v5.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
           SONAR_HOST_URL: https://sonarcloud.io
+
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
           name: udehnih-auth
           path: build/libs/*.jar
+
+      - name: Validate Monitoring Configuration
+        run: |
+          echo "Validating prometheus.yml..."
+          if [ -f prometheus.yml ]; then
+            echo "prometheus.yml exists"
+          else
+            echo "prometheus.yml not found"
+            exit 1
+          fi
+          
+          echo "Validating docker-compose.yml..."
+          if [ -f docker-compose.yml ]; then
+            echo "docker-compose.yml exists"
+            docker-compose config
+          else
+            echo "docker-compose.yml not found"
+            exit 1
+          fi
