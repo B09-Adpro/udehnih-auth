@@ -62,7 +62,7 @@ jobs:
           echo "Validating docker-compose.yml..."
           if [ -f docker-compose.yml ]; then
             echo "docker-compose.yml exists"
-            docker-compose config
+            docker compose config
           else
             echo "docker-compose.yml not found"
             exit 1
